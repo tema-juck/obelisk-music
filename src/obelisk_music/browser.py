@@ -17,14 +17,26 @@ from .widgets import NowPlaying, PlainText
 
 class NavigationTable(DataTable):
     BINDINGS: ClassVar[list[tuple[str, str, str]]] = [
-        ("j", "cursor_down", "Next"),
-        ("k", "cursor_up", "Previous"),
+        ("j", "vim_down", "Next"),
+        ("k", "vim_up", "Previous"),
     ]
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, *, vim_keys: bool = True, **kwargs) -> None:
         super().__init__(
             cursor_type="row", show_row_labels=False, cell_padding=0, **kwargs
         )
+        self.vim_keys = vim_keys
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in ("vim_down", "vim_up") and not self.vim_keys:
+            return False
+        return super().check_action(action, parameters)
+
+    def action_vim_down(self) -> None:
+        self.action_cursor_down()
+
+    def action_vim_up(self) -> None:
+        self.action_cursor_up()
 
     def fill(
         self, columns: list[tuple[str, int]], rows: list[tuple[str, list[str]]]
@@ -62,8 +74,9 @@ class LibraryBrowser(Vertical):
             super().__init__()
             self.pane = pane
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, *, vim_keys: bool = True, **kwargs) -> None:
         super().__init__(**kwargs)
+        self.vim_keys = vim_keys
         self.playlist: Playlist | None = None
         self.playlists: list[tuple[int, Playlist | None]] = []
         self.tracks: list[tuple[int, PlaylistEntry | None]] = []
@@ -77,10 +90,10 @@ class LibraryBrowser(Vertical):
         with Horizontal(id="panes"):
             with Vertical(id="playlists-pane"):
                 yield PlainText("PLAYLISTS", classes="pane-title")
-                yield NavigationTable(id="playlists")
+                yield NavigationTable(vim_keys=self.vim_keys, id="playlists")
             with Vertical(id="tracks-pane"):
                 yield PlainText("TRACKS", id="tracks-title", classes="pane-title")
-                yield NavigationTable(id="tracks")
+                yield NavigationTable(vim_keys=self.vim_keys, id="tracks")
         yield PlainText("Press l to sign in", id="library-message")
 
     def on_mount(self) -> None:

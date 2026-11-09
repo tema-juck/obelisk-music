@@ -502,6 +502,7 @@ def test_multiple_matching_releases_prevent_publication(github, tmp_path, monkey
 def test_binary_smoke_failure_reports_diagnostics(tmp_path, monkeypatch):
     import sys
 
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
     monkeypatch.setitem(sys.modules, "release", release)
     spec = importlib.util.spec_from_file_location(
         "smoke_binary", ROOT / "scripts" / "smoke_binary.py"

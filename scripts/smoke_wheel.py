@@ -15,6 +15,8 @@ from zipfile import ZipFile
 RUNTIME_FILES = {
     "obelisk_music/__init__.py",
     "obelisk_music/app.py",
+    "obelisk_music/config.py",
+    "obelisk_music/cli.py",
     "obelisk_music/auth.py",
     "obelisk_music/models.py",
     "obelisk_music/library.py",
@@ -45,6 +47,7 @@ async def check_installed() -> None:
 
     import obelisk_music
     from obelisk_music.app import ObeliskApp, main
+    from obelisk_music.config import config_path, load_settings
 
     assert (
         Path(obelisk_music.__file__)
@@ -85,7 +88,8 @@ async def check_installed() -> None:
             side_effect=AssertionError("Smoke test attempted browser access"),
         ),
     ):
-        app = ObeliskApp()
+        path = config_path()
+        app = ObeliskApp(settings=load_settings(path), config_file=path)
         async with app.run_test(size=(80, 24)) as pilot:
             assert app.query_one("#track").region.width > 0
             assert app.query_one("#device").region.bottom <= 24
@@ -109,6 +113,8 @@ def main() -> None:
         parser.error("provide exactly one freshly built wheel from dist/")
     wheel = args.wheel.resolve(strict=True)
     check_wheel(wheel)
+    from smoke_config import check_config
+
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit("uv must be available on PATH")
@@ -126,7 +132,11 @@ def main() -> None:
         }
     }
     with tempfile.TemporaryDirectory(prefix="obelisk-wheel-") as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
+        env["XDG_CONFIG_HOME"] = str(root / "config-home")
+        for name in tuple(env):
+            if name.startswith("OBELISK_"):
+                env.pop(name)
         python = root / "venv" / "bin" / "python"
         requirements = root / "requirements.txt"
         subprocess.run(
@@ -173,6 +183,7 @@ def main() -> None:
         subprocess.run(
             [uv, "pip", "check", "--python", str(python)], cwd=root, env=env, check=True
         )
+        check_config([str(root / "venv" / "bin" / "obelisk")], root, env)
         probe = root / "smoke_wheel.py"
         shutil.copyfile(__file__, probe)
         subprocess.run(

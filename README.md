@@ -130,6 +130,25 @@ Create your own Spotify Developer app, register
 `http://127.0.0.1:8765/callback` exactly, and allowlist your Spotify account. Spotify
 Premium and a Spotify Connect playback device are required.
 
+Current source and development builds support a TOML configuration:
+
+```bash
+obelisk config init
+obelisk config edit
+obelisk config validate
+obelisk
+```
+
+Set `spotify.client_id` in `~/.config/obelisk/config.toml`, or under
+`$XDG_CONFIG_HOME/obelisk/config.toml` when set. Use `obelisk config path` to print
+the effective location. The file also supports playback polling interval, the
+`midnight` palette, and enabling/disabling Vim navigation. See
+[Configuration](docs/configuration.md) for the schema, validation, permissions,
+editor selection, and environment overrides.
+
+Published `v0.2.0-alpha.1` binaries predate these commands. Those binaries, and
+users who prefer environment setup, can continue using:
+
 ```bash
 export SPOTIFY_CLIENT_ID="your_client_id_here"
 obelisk
@@ -144,6 +163,7 @@ the repository, or release archives. `.env` files are not loaded automatically.
 - **Command not found:** check `~/.local/bin` is on PATH, or run that executable by its full path.
 - **Wrong architecture / bad CPU type:** use the archive matching your hardware; builds are native, not universal or cross-compiled.
 - **Login fails:** verify the client ID, exact callback URL, account allowlist, and that port 8765 is available. Obelisk reports locked/unavailable keychains instead of storing tokens in plaintext.
+- **Configuration error:** run `obelisk config path`, repair with `config edit`, then `config validate`. Unset an invalid environment override to use the file. Config creation refuses symlinks and never overwrites files.
 - **Linux keychain unavailable:** use a desktop session with a running Secret Service keyring and D-Bus session. Headless servers may not provide a secure credential backend.
 - **No playback device:** open Spotify, start playback, then press **D** to select a controllable device. Restricted or disappeared devices cannot accept commands.
 - **One-file startup fails:** PyInstaller needs a writable temporary directory that permits loading executable code. The smoke test also requires a real PTY and OS IPC support; restrictive sandboxes can block these.
@@ -161,6 +181,7 @@ the repository, or release archives. `.env` files are not loaded automatically.
 - Playlist owners and available item counts; unavailable entries keep their positions
 - Enter-to-play using playlist context and the original item offset
 - Keyboard-driven Spotify Connect device selection and playback transfer
+- Validated XDG TOML configuration and `config init/edit/path/validate` commands in development builds
 
 ## Getting started
 
@@ -175,11 +196,15 @@ This section is for running from source. Standalone installation is described ab
 
 ```bash
 uv sync --dev
-export SPOTIFY_CLIENT_ID="your_client_id_here"
+uv run obelisk config init
+uv run obelisk config edit
+uv run obelisk config validate
 uv run obelisk
 ```
 
-Press **L** to open browser authorization. Complete the consent form and return to the terminal.
+Set `spotify.client_id` in the editor. `SPOTIFY_CLIENT_ID` remains an override for
+existing environment setups. Press **L** to open browser authorization. Complete
+the consent form and return to the terminal.
 After upgrading from the playback-only version, press **L** once to grant
 `playlist-read-private` and `playlist-read-collaborative`. Token refresh cannot add
 permissions to an existing grant.

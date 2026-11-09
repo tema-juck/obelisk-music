@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from obelisk_music.app import ObeliskApp
 from obelisk_music.browser import LibraryBrowser, NavigationTable
+from obelisk_music.config import Settings, config_path
 from obelisk_music.models import Token
 from obelisk_music.screens import DeviceScreen, HelpScreen
 from obelisk_music.widgets import PlainText
@@ -96,10 +97,137 @@ class SpotifyStub:
         ]
 
 
-def app_for(stub):
-    app = ObeliskApp(http=httpx.AsyncClient(transport=httpx.MockTransport(stub)))
+def app_for(stub, **kwargs):
+    app = ObeliskApp(
+        http=httpx.AsyncClient(transport=httpx.MockTransport(stub)), **kwargs
+    )
     app.session._install(Token(access_token="test-access", expires_in=3600))
     return app
+
+
+@pytest.mark.parametrize("size", [(120, 35), (80, 24), (40, 12)])
+def test_configured_navigation_without_vim_in_all_panes_and_overlays(size):
+    async def run():
+        app = app_for(SpotifyStub(), settings=Settings(interface={"vim_keys": False}))
+        async with app.run_test(size=size) as pilot:
+            await pilot.press("r")
+            await settle(app)
+            table = app.query_one("#playlists", NavigationTable)
+            await pilot.press("j")
+            assert table.cursor_row == 0
+            await pilot.press("down")
+            assert table.cursor_row == 1
+            await pilot.press("k")
+            assert table.cursor_row == 1
+            await pilot.press("up", "enter")
+            await settle(app)
+            table = app.query_one("#tracks", NavigationTable)
+            await pilot.press("j")
+            assert table.cursor_row == 0
+            await pilot.press("down")
+            assert table.cursor_row == 1
+            await pilot.press("d")
+            await settle(app)
+            devices = app.screen.query_one("#devices", NavigationTable)
+            await pilot.press("j")
+            assert devices.cursor_row == 0
+            await pilot.press("down")
+            assert devices.cursor_row == 1
+            await pilot.press("escape", "question_mark")
+            assert isinstance(app.screen, HelpScreen)
+            assert app.screen.check_action("vim_down", ()) is False
+            help_text = str(app.screen.query_one("#help-text", PlainText).render())
+            assert "j /" not in help_text
+            assert str(config_path()) in help_text
+            from textual.containers import VerticalScroll
+
+            scroll = app.screen.query_one(VerticalScroll)
+            await pilot.press("j")
+            assert scroll.scroll_y == 0
+            await pilot.press("down")
+            await pilot.pause(0.3)
+            assert (scroll.scroll_y > 0) == (scroll.max_scroll_y > 0)
+            await pilot.press("escape", "q")
+            assert not app.is_running
+
+    asyncio.run(run())
+
+
+def test_default_vim_help_scrolling_remains_available():
+    async def run():
+        app = app_for(SpotifyStub())
+        async with app.run_test(size=(40, 12)) as pilot:
+            await pilot.press("question_mark", "j")
+            await pilot.pause(0.3)
+            assert app.screen.query_one("#help-scroll").scroll_y > 0
+            await pilot.press("k")
+            await pilot.pause(0.3)
+            assert app.screen.query_one("#help-scroll").scroll_y == 0
+
+    asyncio.run(run())
+
+
+def test_configured_polling_interval_is_used_by_real_timer():
+    async def run():
+        stub = SpotifyStub()
+        app = app_for(stub, settings=Settings(spotify={"refresh_interval": 1}))
+        async with app.run_test():
+            assert not stub.requests("/v1/me/player")
+            async with asyncio.timeout(2):
+                while not stub.requests("/v1/me/player"):
+                    await asyncio.sleep(0.01)
+            assert app.theme == "midnight"
+            assert app.current_theme.background == "#0c1118"
+
+    asyncio.run(run())
+
+
+def test_file_settings_are_injected_before_ui_without_event_loop_file_io(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from obelisk_music import config
+
+    path = config.config_path()
+    config.init_config(path)
+    path.write_text('[spotify]\nclient_id = "file-client-id"\nrefresh_interval = 21')
+    settings = config.load_settings(path)
+    monkeypatch.setattr(
+        config, "_read", lambda *args, **kwargs: pytest.fail("Configuration I/O in UI")
+    )
+
+    async def run():
+        app = ObeliskApp(
+            settings=settings,
+            config_file=path,
+            http=httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda r: httpx.Response(204))
+            ),
+        )
+        monkeypatch.setattr(app.session, "restore", AsyncMock(return_value=False))
+        assert app.client_id == "file-client-id"
+        async with app.run_test() as pilot:
+            await settle(app)
+            app.session.restore.assert_awaited_once()
+            assert "Press L" in text(app, "#status")
+            await pilot.press("q")
+
+    asyncio.run(run())
+
+
+def test_missing_client_id_displays_path_and_persistent_setup_hint():
+    async def run():
+        app = ObeliskApp(settings=Settings())
+        async with app.run_test() as pilot:
+            assert str(config_path()) in text(app, "#library-message")
+            assert "config init" in text(app, "#status")
+            from obelisk_music.widgets import FeedbackBar
+
+            assert app.query_one(FeedbackBar)._clear_timer is None
+            await pilot.press("space", "l")
+            assert str(config_path()) in text(app, "#library-message")
+            assert "config init" in text(app, "#status")
+
+    asyncio.run(run())
 
 
 async def settle(app):

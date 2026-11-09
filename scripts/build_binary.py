@@ -39,7 +39,8 @@ def main() -> None:
     env = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith("SPOTIFY_") and key not in ("PYTHONPATH", "PYTHONHOME")
+        if not key.startswith(("SPOTIFY_", "OBELISK_"))
+        and key not in ("PYTHONPATH", "PYTHONHOME")
     }
     env.update(
         PYTHONHASHSEED="0",
