@@ -1,30 +1,39 @@
-/* Obelisk Music: intentionally borderless and keyboard-first. */
+/* Borderless, keyboard-first; compact layouts keep playback and status visible. */
 Screen { background: #0c1118; color: #dbe5f1; }
 #shell { width: 100%; height: 100%; padding: 1 3 0 3; }
-#topbar { height: 2; width: 100%; align: left middle; }
+#topbar { height: 1; width: 100%; }
 #brand { width: 19; color: #91b7ff; text-style: bold; }
-#subtitle { width: 1fr; color: #65748a; }
-#connection { width: 15; text-align: right; color: #75bda1; }
-#top-rule, #bottom-rule { height: 1; color: #273343; }
-#workspace { height: 1fr; min-height: 12; }
-#sidebar { width: 29; padding: 2 2 0 0; border-right: solid #253142; }
-#content { width: 1fr; padding: 2 3 0 4; }
-.section-label { height: 2; color: #64768d; text-style: bold; }
-#nav-playing { height: 2; color: #92baff; text-style: bold; }
-.nav-item { height: 2; color: #a2b0c1; }
-.side-note { height: auto; color: #8091a4; }
-.sidebar-gap { height: 2; }
-#track { height: auto; min-height: 2; color: #f1f5fc; text-style: bold; text-wrap: wrap; }
-#artist { height: auto; color: #9eb2cc; }
-#album { height: auto; color: #7386a1; margin-top: 1; }
-.flex-space { height: 1fr; min-height: 1; }
-#progress { height: 1; color: #91b7ff; }
-#time-row { height: 2; color: #697d97; }
+#subtitle { width: 1fr; color: #8c9bb0; }
+#connection { width: 18; text-align: right; color: #75bda1; }
+#top-rule, #bottom-rule { height: 1; border-bottom: solid #273343; }
+#workspace { height: 1fr; min-height: 0; }
+#sidebar { width: 25; padding: 1 2 0 0; border-right: solid #253142; color: #9aabbe; }
+#sidebar PlainText { height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
+#sidebar .section-label { color: #8b9db3; text-style: bold; }
+#nav-playing { color: #92baff; text-style: bold; }
+#sidebar .sidebar-gap { height: 1; }
+#content { width: 1fr; height: 100%; padding: 1 2 0 3; }
+#content PlainText { height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
+#content .section-label { color: #8b9db3; text-style: bold; }
+#track { color: #f1f5fc; text-style: bold; }
+#artist { color: #9eb2cc; }
+#album { color: #95a5ba; }
+#content .flex-space { height: 1fr; min-height: 0; }
+#progress { color: #91b7ff; }
+#time-row { height: 1; color: #93a6be; }
 #elapsed { width: 1fr; }
 #duration { width: 1fr; text-align: right; }
-#controls { height: 3; color: #cbd8e8; text-align: center; }
-.content-bottom { height: 2; }
+#controls { color: #cbd8e8; text-align: center; margin-bottom: 1; }
 #device { color: #acbbcc; }
 #bottom-bar { height: 2; }
-#status { width: 1fr; color: #8aa5c5; }
-#version { width: 18; text-align: right; color: #57677a; }
+#status { width: 1fr; height: 2; color: #9db8d8; text-wrap: wrap; }
+#version { width: 15; height: 1; text-align: right; color: #8c9bb0; }
+.compact #shell { padding: 0 1; }
+.compact #sidebar, .compact #subtitle, .compact #version { display: none; }
+.compact #brand { width: 14; }
+.compact #connection { width: 1fr; }
+.compact #content { padding: 1 0 0 0; }
+.compact .output-label { display: none; }
+.tiny #content { padding: 0; }
+.tiny #album, .tiny #content .section-label { display: none; }
+.tiny #controls { margin-bottom: 0; }
