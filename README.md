@@ -6,11 +6,10 @@ Python · Textual · Spotify Web API · macOS / Linux
 
 > **Status:** experimental MVP. Obelisk does not decrypt or stream Spotify audio. Spotify Desktop or another Spotify Connect device handles audio playback.
 
-## Install a standalone pre-release
+## Install a standalone executable
 
-The first planned pre-release is **v0.2.0-alpha.1**. These downloads become
-available only after its release workflow succeeds. Standalone executables include
-Python and runtime dependencies; installing Python or uv is not required.
+The published pre-release is **v0.2.0-alpha.1**. Standalone executables include
+Python and runtime dependencies; installing Python, uv, or Homebrew is not required.
 
 Choose the target matching your computer:
 
@@ -23,6 +22,72 @@ Choose the target matching your computer:
 Linux builds target glibc systems (Ubuntu 22.04 or newer is the build baseline),
 not Alpine/musl. Older macOS versions are not verified. Linux ARM64 and Homebrew
 installation are not provided.
+
+### Shell installer
+
+Download the installer as a file, inspect it, then run it explicitly. Do not pipe
+remote scripts into your shell. It needs POSIX `sh`, `curl`, `tar`, `gzip`, common
+Unix utilities, and either `sha256sum` (usually Linux) or `shasum` (macOS).
+
+```bash
+curl --fail --location --proto '=https' --proto-redir '=https' --output install.sh https://raw.githubusercontent.com/tema-juck/obelisk-music/main/scripts/install.sh
+less install.sh
+sh install.sh --prerelease
+```
+
+The default, `sh install.sh`, selects GitHub's latest **stable** release. There is
+no stable release yet, so use `--prerelease` to select the newest published release
+including prereleases, or choose an explicit version:
+
+```bash
+sh install.sh --version v0.2.0-alpha.1
+sh install.sh --prerelease --bin-dir "$HOME/bin"
+```
+
+The default destination is `${XDG_BIN_HOME:-$HOME/.local/bin}`. The installer never
+uses sudo, edits shell profiles, runs Obelisk, or changes macOS security settings.
+It reports when the directory is absent from PATH. For the default location,
+explicitly add the following to your shell configuration if needed:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The script verifies the selected archive against `SHA256SUMS` before bounded
+decompression, accepts only the expected three regular archive members, and reads
+only `obelisk` to a file without filesystem extraction. The compressed and expanded
+archive limit is 128 MiB. Checksums detect corruption; they do not independently
+prove publisher identity.
+
+### Upgrade and uninstall
+
+Re-run the reviewed installer with the desired channel or `--version` to upgrade.
+The hidden `.obelisk-managed.sha256` receipt records the installed executable's
+hash. Only an unchanged managed executable may be replaced. Existing manual
+installations, unrelated binaries, symlinks, and modified files are refused: inspect
+and move them aside yourself before switching to this installer. There is no force
+overwrite option. Keep the receipt alongside the executable.
+
+Download and inspect the uninstaller before running it, using the same directory
+as installation:
+
+```bash
+curl --fail --location --proto '=https' --proto-redir '=https' --output uninstall.sh https://raw.githubusercontent.com/tema-juck/obelisk-music/main/scripts/uninstall.sh
+less uninstall.sh
+sh uninstall.sh
+# Custom installation: sh uninstall.sh --bin-dir "$HOME/bin"
+```
+
+It removes only the unchanged managed executable and its receipt. Other files,
+configuration, and Spotify keychain credentials remain. To remove login credentials,
+remove the `obelisk-music` entry from your OS keychain explicitly.
+
+Concurrent install/uninstall operations share a directory lock. After a forced
+interruption, inspect the installation before retrying: a stale lock or mismatched
+receipt deliberately blocks changes. Once no installer is running, an empty stale
+`.obelisk-install.lock` can be removed manually. Never bypass a checksum failure.
+
+### Verify release checksums manually
 
 Download from [GitHub Releases](https://github.com/tema-juck/obelisk-music/releases).
 For example, for Apple Silicon, run the following in an empty download directory;
@@ -50,22 +115,8 @@ shasum -a 256 -c "$asset.sha256"
 sha256sum -c "$asset.sha256"
 ```
 
-After verification succeeds:
-
-```bash
-tar -xzf "$asset" obelisk
-mkdir -p "$HOME/.local/bin"
-install -m 755 obelisk "$HOME/.local/bin/obelisk"
-export PATH="$HOME/.local/bin:$PATH"
-obelisk --help
-obelisk --version
-```
-
-Add `$HOME/.local/bin` to your shell's PATH permanently if necessary. To update,
-quit Obelisk, download the new version, verify its checksum, and repeat the install
-step. To uninstall, remove `~/.local/bin/obelisk`. Refresh tokens stay in your OS
-keychain; remove the `obelisk-music` entry there if you also want to remove login
-credentials.
+These commands are an independent checksum check; the installer performs its own
+verification before installing and does not execute the downloaded application.
 
 These initial macOS binaries use ad-hoc signing, not Developer ID signing or Apple
 notarization. If macOS blocks a verified download, follow Apple's
