@@ -18,7 +18,7 @@ class PlainText(Static):
 class FeedbackBar(PlainText):
     """Polling never replaces feedback from a user's command."""
 
-    HINT = "space play/pause · n/p skip · q quit"
+    HINT = "j/k Move · Enter Open/Play · d Devices · ? Help · q Quit"
 
     def __init__(self, **kwargs) -> None:
         super().__init__(self.HINT, **kwargs)
@@ -35,6 +35,8 @@ class FeedbackBar(PlainText):
         self._clear_timer = self.set_timer(8, self.clear_message)
 
     def clear_message(self) -> None:
+        if self._clear_timer is not None:
+            self._clear_timer.stop()
         self._command_feedback = False
         self._clear_timer = None
         self.update(self.HINT)
@@ -60,18 +62,17 @@ class PlaybackProgress(PlainText):
 
 class NowPlaying(Vertical):
     def compose(self) -> ComposeResult:
-        yield PlainText("NOW PLAYING", classes="section-label")
-        yield PlainText("Nothing playing", id="track")
-        yield PlainText("Open Spotify and press L to connect", id="artist")
-        yield PlainText("", id="album")
-        yield PlainText("", classes="flex-space")
-        yield PlaybackProgress(id="progress")
-        with Horizontal(id="time-row"):
+        with Horizontal(id="song-row"):
+            yield PlainText("Nothing playing", id="track")
+            yield PlainText("Open Spotify and press L", id="artist")
+            yield PlainText("", id="album")
+        with Horizontal(id="playback-row"):
+            yield PlainText("space ▷", id="controls")
             yield PlainText("0:00", id="elapsed")
+            yield PlainText(" / ", id="time-divider")
             yield PlainText("0:00", id="duration")
-        yield PlainText("p prev    ▷ play    n next", id="controls")
-        yield PlainText("OUTPUT", classes="section-label output-label")
-        yield PlainText("No active device", id="device")
+            yield PlainText("No active device", id="device")
+        yield PlaybackProgress(id="progress")
 
     @staticmethod
     def _clock(milliseconds: int) -> str:
@@ -97,7 +98,5 @@ class NowPlaying(Vertical):
         self.query_one("#elapsed", PlainText).update(self._clock(position))
         self.query_one("#duration", PlainText).update(self._clock(duration))
         self.query_one("#controls", PlainText).update(
-            "p prev    ❚❚ pause    n next"
-            if playback.is_playing
-            else "p prev    ▷ play    n next"
+            "space ❚❚" if playback.is_playing else "space ▷"
         )

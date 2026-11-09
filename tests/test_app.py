@@ -251,7 +251,6 @@ def test_layout_and_metadata_remain_visible_and_plain(monkeypatch, size):
             assert content(app, "#artist") == "[bold]Artist[/bold]"
             assert content(app, "#album") == "[i]Album[/i]"
             assert content(app, "#device") == "[red]Desktop[/red]"
-            assert content(app, "#sidebar-device") == "[red]Desktop[/red]"
             for selector in [
                 "#track",
                 "#artist",
@@ -295,11 +294,11 @@ def test_resize_reflows_progress_and_preserves_metadata(monkeypatch):
             await pilot.resize_terminal(40, 12)
             await pilot.pause()
             assert content(app, "#track") == "Track"
-            assert app.query_one("#sidebar").display is False
+            assert app.query_one("#tracks-pane").display is False
             assert len(content(app, "#progress")) == 38
             await pilot.resize_terminal(120, 40)
             await pilot.pause()
-            assert app.query_one("#sidebar").display is True
+            assert app.query_one("#tracks-pane").display is True
             assert (
                 len(content(app, "#progress"))
                 == app.query_one("#progress").content_size.width
@@ -378,6 +377,10 @@ def test_headless_http_401_recovery_and_shared_command_cooldown(monkeypatch):
         calls = []
 
         def handler(request):
+            if request.url.path == "/v1/me/playlists":
+                return httpx.Response(
+                    200, json={"offset": 0, "limit": 50, "total": 0, "items": []}
+                )
             calls.append(request)
             if request.url == auth.TOKEN_URL:
                 return httpx.Response(

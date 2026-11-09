@@ -20,7 +20,9 @@ def test_tests_cannot_access_network_or_credentials():
         keyring.get_password("obelisk-music", "test-client")
 
 
-@pytest.mark.parametrize("missing", ["obelisk.tcss", "models.py", "library.py"])
+@pytest.mark.parametrize(
+    "missing", ["obelisk.tcss", "models.py", "library.py", "browser.py", "screens.py"]
+)
 def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing):
     wheel = tmp_path / "broken.whl"
     with ZipFile(wheel, "w") as archive:
@@ -30,6 +32,8 @@ def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing
             "auth.py",
             "models.py",
             "library.py",
+            "browser.py",
+            "screens.py",
             "session.py",
             "spotify.py",
             "widgets.py",
