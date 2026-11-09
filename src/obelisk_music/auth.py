@@ -18,7 +18,8 @@ from .models import Token
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 SCOPES = (
-    "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+    "user-read-playback-state user-modify-playback-state user-read-currently-playing "
+    "playlist-read-private playlist-read-collaborative"
 )
 SERVICE = "obelisk-music"
 

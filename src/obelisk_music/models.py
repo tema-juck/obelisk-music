@@ -1,6 +1,8 @@
 """Validate the Spotify fields used by the controller."""
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from typing import Generic, TypeVar
+
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, SecretStr
 
 
 class Token(BaseModel):
@@ -28,6 +30,10 @@ class Track(BaseModel):
     artists: list[Artist] = Field(default_factory=list)
     album: Album | None = None
     duration_ms: int = Field(default=0, ge=0)
+    uri: str | None = None
+    type: str = "track"
+    is_local: bool = False
+    is_playable: bool | None = None
 
 
 class Device(BaseModel):
@@ -35,6 +41,9 @@ class Device(BaseModel):
 
     name: str = ""
     id: str | None = None
+    type: str = "Unknown"
+    is_active: bool = False
+    is_restricted: bool = False
 
 
 class Playback(BaseModel):
@@ -44,3 +53,63 @@ class Playback(BaseModel):
     item: Track | None = None
     device: Device | None = None
     progress_ms: int | None = Field(default=None, ge=0)
+
+
+class Owner(BaseModel):
+    model_config = ConfigDict(strict=True)
+    display_name: str | None = None
+    id: str | None = None
+
+
+class ItemCount(BaseModel):
+    model_config = ConfigDict(strict=True)
+    total: int = Field(ge=0)
+
+
+class Playlist(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    id: str | None = Field(default=None, min_length=1)
+    name: str = "Unavailable playlist"
+    owner: Owner | None = None
+    items: ItemCount | None = Field(
+        default=None, validation_alias=AliasChoices("items", "tracks")
+    )
+
+
+class PlaylistEntry(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    item: Track | None = Field(
+        default=None, validation_alias=AliasChoices("item", "track")
+    )
+    is_local: bool = False
+
+    @property
+    def playable(self) -> bool:
+        return bool(
+            self.item
+            and self.item.uri
+            and self.item.uri.startswith("spotify:track:")
+            and self.item.type == "track"
+            and self.item.is_playable is not False
+            and not self.is_local
+            and not self.item.is_local
+        )
+
+
+T = TypeVar("T")
+
+
+class Page(BaseModel, Generic[T]):
+    model_config = ConfigDict(strict=True)
+
+    offset: int = Field(ge=0)
+    limit: int = Field(gt=0, le=50)
+    total: int = Field(ge=0)
+    items: list[T]
+
+    @property
+    def next_offset(self) -> int | None:
+        following = self.offset + len(self.items)
+        return following if self.items and following < self.total else None

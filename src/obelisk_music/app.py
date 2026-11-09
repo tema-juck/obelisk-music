@@ -9,10 +9,16 @@ from typing import ClassVar
 import httpx
 from textual import events
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.widgets import Input
 from textual.worker import Worker
 
 from .auth import AuthError
+from .browser import LibraryBrowser
+from .library import SpotifyLibrary
+from .models import Device
+from .screens import DeviceScreen, HelpScreen
 from .session import SpotifySession
 from .spotify import SpotifyClient, SpotifyError
 from .widgets import FeedbackBar, NowPlaying, PlainText
@@ -23,13 +29,18 @@ class ObeliskApp(App):
 
     TITLE = "Obelisk Music"
     CSS_PATH = "obelisk.tcss"
-    BINDINGS: ClassVar[list[tuple[str, str, str]]] = [
+    BINDINGS: ClassVar[list[Binding | tuple[str, str, str]]] = [
         ("space", "toggle", "Play / Pause"),
         ("n", "next_track", "Next"),
         ("p", "previous_track", "Previous"),
         ("l", "login", "Login"),
         ("r", "refresh", "Refresh"),
         ("q", "quit", "Quit"),
+        Binding("tab", "switch_pane", "Switch pane", priority=True),
+        Binding("shift+tab", "switch_pane", "Switch pane backward", priority=True),
+        ("escape", "back", "Back"),
+        ("d", "devices", "Devices"),
+        ("question_mark", "help", "Help"),
     ]
 
     def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
@@ -41,6 +52,11 @@ class ObeliskApp(App):
         self.http = http if http is not None else httpx.AsyncClient(timeout=15)
         self.session = SpotifySession(self.client_id, self.http)
         self.spotify = SpotifyClient(self.session, self.http)
+        self.library = SpotifyLibrary(self.spotify)
+        self.target_device_id: str | None = None
+        self._library_worker: Worker | None = None
+        self._library_key: tuple[str, str | None] | None = None
+        self._library_revision = 0
         self.is_playing = False
         self.connection_state = "OFFLINE"
         self._revision = 0
@@ -52,27 +68,12 @@ class ObeliskApp(App):
     def compose(self) -> ComposeResult:
         with Vertical(id="shell"):
             with Horizontal(id="topbar"):
-                yield PlainText("◆  OBELISK", id="brand")
-                yield PlainText("M U S I C   /   S P O T I F Y", id="subtitle")
+                yield PlainText("◆ OBELISK MUSIC", id="brand")
                 yield PlainText("● OFFLINE", id="connection")
             yield PlainText(id="top-rule")
-            with Horizontal(id="workspace"):
-                with Vertical(id="sidebar"):
-                    yield PlainText("LIBRARY", classes="section-label")
-                    yield PlainText("▸  Now playing", id="nav-playing")
-                    yield PlainText("Spotify Connect", classes="nav-item")
-                    yield PlainText("", classes="sidebar-gap")
-                    yield PlainText("SESSION", classes="section-label")
-                    yield PlainText("No active device", id="sidebar-device")
-                    yield PlainText("", classes="sidebar-gap")
-                    yield PlainText("SHORTCUTS", classes="section-label")
-                    yield PlainText("space   play / pause")
-                    yield PlainText("n / p   next / prev")
-                    yield PlainText("l       sign in")
-                    yield PlainText("r       refresh")
-                    yield PlainText("q       quit")
-                yield NowPlaying(id="content")
+            yield LibraryBrowser(id="workspace")
             yield PlainText(id="bottom-rule")
+            yield NowPlaying(id="content")
             with Horizontal(id="bottom-bar"):
                 yield FeedbackBar(id="status")
                 yield PlainText("OBELISK / 0.2", id="version")
@@ -89,8 +90,16 @@ class ObeliskApp(App):
         self._layout(event.size.width, event.size.height)
 
     def _layout(self, width: int, height: int) -> None:
-        self.set_class(width < 90 or height < 26, "compact")
+        self.set_class(width < 70, "compact")
         self.set_class(width < 55 or height < 16, "tiny")
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {
+            binding.action if isinstance(binding, Binding) else binding[1]
+            for binding in self.BINDINGS
+        } and (len(self.screen_stack) > 1 or isinstance(self.focused, Input)):
+            return False
+        return super().check_action(action, parameters)
 
     async def on_unmount(self) -> None:
         self.workers.cancel_all()
@@ -98,11 +107,13 @@ class ObeliskApp(App):
         await self.http.aclose()
 
     def status(self, message: str, *, command: bool = False) -> None:
-        self.query_one("#status", FeedbackBar).show_message(message, command=command)
+        self.screen_stack[0].query_one("#status", FeedbackBar).show_message(
+            message, command=command
+        )
 
     def _connection(self, state: str) -> None:
         self.connection_state = state
-        self.query_one("#connection", PlainText).update(f"● {state}")
+        self.screen_stack[0].query_one("#connection", PlainText).update(f"● {state}")
 
     def _report_error(self, exc: Exception, *, command: bool = False) -> None:
         if isinstance(exc, AuthError):
@@ -150,6 +161,10 @@ class ObeliskApp(App):
             )
             return
         self._invalidate_playback()
+        self._library_revision += 1
+        if self._library_worker is not None:
+            self._library_worker.cancel()
+        self._library_key = None
         self._session_worker = self.run_worker(
             self._connect(interactive),
             name="login" if interactive else "restore",
@@ -171,7 +186,14 @@ class ObeliskApp(App):
                 self._connection("LOGIN NEEDED")
                 self.status("Press L to authorize Spotify")
                 return
+            self.library.clear()
+            self.target_device_id = None
+            browser = self.screen_stack[0].query_one(LibraryBrowser)
+            browser.clear_library()
+            browser.focus_pane("playlists")
+            self.screen_stack[0].query_one(FeedbackBar).clear_message()
             self._start_refresh()
+            self.call_later(self._start_library, "playlists")
         except (AuthError, SpotifyError, httpx.HTTPError, OSError, ValueError) as exc:
             self._report_error(exc)
 
@@ -196,9 +218,9 @@ class ObeliskApp(App):
                 if revision != self._revision:
                     return
                 self.is_playing = playback.is_playing
-                self.query_one(NowPlaying).show_playback(playback)
-                self.query_one("#sidebar-device", PlainText).update(
-                    playback.device.name if playback.device else "No active device"
+                self.screen_stack[0].query_one(NowPlaying).show_playback(playback)
+                self.screen_stack[0].query_one(LibraryBrowser).show_playing(
+                    playback.item.uri if playback.item else None
                 )
                 self._connection("CONNECTED" if playback.device else "NO DEVICE")
             except (AuthError, SpotifyError, httpx.HTTPError) as exc:
@@ -208,7 +230,7 @@ class ObeliskApp(App):
     def action_login(self) -> None:
         self._start_session(interactive=True)
 
-    def _start_command(self, command: str) -> None:
+    def _start_command(self, command: str, *args: object) -> None:
         if self._active(self._session_worker):
             self.status("Login in progress", command=True)
             return
@@ -219,11 +241,20 @@ class ObeliskApp(App):
             self.status("Playback command in progress", command=True)
             return
         self._invalidate_playback()
-        self._command_worker = self.run_worker(self._command(command), group="command")
+        target = self.target_device_id if command != "transfer" else None
+        self._command_worker = self.run_worker(
+            self._command(command, args, target), group="command"
+        )
 
-    async def _command(self, command: str) -> None:
+    async def _command(
+        self, command: str, args: tuple[object, ...] = (), target: str | None = None
+    ) -> None:
         try:
-            await getattr(self.spotify, command)()
+            await getattr(self.spotify, command)(
+                *args, **({"device_id": target} if target else {})
+            )
+            if command == "transfer":
+                self.target_device_id = str(args[0])
             self.status("Playback command sent", command=True)
         except (AuthError, SpotifyError, httpx.HTTPError) as exc:
             self._report_error(exc, command=True)
@@ -244,8 +275,142 @@ class ObeliskApp(App):
             return
         if self.session.authorized:
             self._start_refresh()
+            browser = self.screen_stack[0].query_one(LibraryBrowser)
+            pane = (
+                self.focused.id
+                if self.focused and self.focused.id in ("playlists", "tracks")
+                else browser.active_pane
+            )
+            if not self._active(self._library_worker):
+                if pane == "tracks" and browser.playlist:
+                    self.library.clear_tracks(browser.playlist.id)
+                    browser.show_tracks([], False)
+                    self._start_library("tracks", browser.playlist.id)
+                else:
+                    self.library.clear()
+                    browser.clear_library()
+                    self._start_library("playlists")
         else:
             self._start_session(interactive=False)
+
+    def _start_library(self, pane: str, playlist_id: str | None = None) -> None:
+        if not self.session.authorized:
+            self.status("Press l to authorize Spotify", command=True)
+            return
+        if self._active(self._session_worker):
+            self.status("Login in progress", command=True)
+            return
+        key = (pane, playlist_id)
+        if self._active(self._library_worker) and self._library_key == key:
+            return
+        self._library_revision += 1
+        self._library_key = key
+        self.screen_stack[0].query_one(LibraryBrowser).message(
+            "Loading playlists…" if pane == "playlists" else "Loading tracks…"
+        )
+        self._library_worker = self.run_worker(
+            self._load_library(pane, playlist_id, self._library_revision),
+            group="library",
+            exclusive=True,
+        )
+
+    async def _load_library(
+        self, pane: str, playlist_id: str | None, revision: int
+    ) -> None:
+        browser = self.screen_stack[0].query_one(LibraryBrowser)
+        try:
+            if pane == "playlists":
+                await self.library.load_playlists()
+            else:
+                await self.library.load_tracks(playlist_id)
+            if revision != self._library_revision:
+                return
+            if pane == "playlists":
+                collection = self.library.playlists
+                browser.show_playlists(
+                    collection.entries, collection.next_offset is not None
+                )
+            elif browser.playlist and browser.playlist.id == playlist_id:
+                collection = self.library.tracks[playlist_id]
+                browser.show_tracks(
+                    collection.entries, collection.next_offset is not None
+                )
+        except (AuthError, SpotifyError, httpx.HTTPError) as exc:
+            if revision != self._library_revision:
+                return
+            if isinstance(exc, SpotifyError) and exc.status_code in (403, 404):
+                browser.message(
+                    f"Playlist unavailable ({exc.status_code}) · r retry"
+                    if pane == "tracks"
+                    else f"Library denied ({exc.status_code}) · l permissions"
+                )
+            else:
+                browser.message("Could not load this page; press r to retry")
+                self._report_error(exc)
+
+    def on_library_browser_open_playlist(
+        self, event: LibraryBrowser.OpenPlaylist
+    ) -> None:
+        browser = self.screen_stack[0].query_one(LibraryBrowser)
+        self._library_revision += 1
+        if self._library_worker is not None:
+            self._library_worker.cancel()
+        self._library_key = None
+        browser.open_playlist(event.playlist)
+        collection = self.library.tracks.get(event.playlist.id)
+        if collection and collection.pages:
+            browser.show_tracks(collection.entries, collection.next_offset is not None)
+        else:
+            self._start_library("tracks", event.playlist.id)
+
+    def on_library_browser_load_more(self, event: LibraryBrowser.LoadMore) -> None:
+        browser = self.screen_stack[0].query_one(LibraryBrowser)
+        if event.pane == "playlists":
+            self._start_library("playlists")
+        elif browser.playlist:
+            self._start_library("tracks", browser.playlist.id)
+
+    def on_library_browser_play_track(self, event: LibraryBrowser.PlayTrack) -> None:
+        self._start_command("play_playlist", event.playlist.id, event.position)
+
+    def action_switch_pane(self) -> None:
+        self.screen_stack[0].query_one(LibraryBrowser).switch_pane()
+
+    def action_back(self) -> None:
+        self.screen_stack[0].query_one(LibraryBrowser).focus_pane("playlists")
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
+
+    def action_devices(self) -> None:
+        if not self.session.authorized:
+            self.status("Press l to authorize Spotify", command=True)
+            return
+        self.push_screen(DeviceScreen(self.target_device_id), self._device_selected)
+
+    def on_device_screen_load(self, event: DeviceScreen.Load) -> None:
+        if event.overlay.is_mounted and self.screen is event.overlay:
+            event.overlay.run_worker(
+                self._load_devices(event.overlay), group="devices", exclusive=True
+            )
+
+    async def _load_devices(self, overlay: DeviceScreen) -> None:
+        try:
+            devices = await self.spotify.devices()
+            if self.screen is overlay:
+                overlay.show_devices(devices)
+        except (AuthError, SpotifyError, httpx.HTTPError) as exc:
+            if self.screen is overlay:
+                overlay.query_one("#device-message", PlainText).update(
+                    str(exc)
+                    if isinstance(exc, (AuthError, SpotifyError))
+                    else "Connection failed; r retries"
+                )
+                self._report_error(exc)
+
+    def _device_selected(self, device: Device | None) -> None:
+        if device and device.id and not device.is_restricted:
+            self._start_command("transfer", device.id)
 
 
 def main() -> None:
