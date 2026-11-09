@@ -7,12 +7,13 @@ import math
 import time
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
 from .auth import AuthError
-from .models import Device, Playback
+from .models import Device, Page, Playback, Playlist, PlaylistEntry
 from .session import SpotifySession
 
 BASE = "https://api.spotify.com/v1"
@@ -99,7 +100,9 @@ class SpotifyClient:
                 )
             if response.status_code == 404:
                 raise SpotifyError(
-                    "No active Spotify device (404); open Spotify and start playback",
+                    "No active Spotify device (404); open Spotify and start playback"
+                    if path.startswith("/me/player")
+                    else "Spotify resource is unavailable or deleted (404)",
                     status_code=404,
                 )
             if not response.is_success:
@@ -131,14 +134,84 @@ class SpotifyClient:
         except ValidationError:
             raise SpotifyError("Spotify returned invalid device data") from None
 
-    async def pause(self) -> None:
-        await self.request("PUT", "/me/player/pause")
+    async def playlists(self, offset: int = 0) -> Page[Playlist | None]:
+        if not 0 <= offset <= 100_000:
+            raise ValueError("Playlist offset must be between 0 and 100000")
+        payload = await self.request(
+            "GET", "/me/playlists", params={"offset": offset, "limit": 50}
+        )
+        try:
+            page = Page[Playlist | None].model_validate(payload)
+        except ValidationError:
+            raise SpotifyError("Spotify returned invalid playlist data") from None
+        if page.offset != offset:
+            raise SpotifyError("Spotify returned an unexpected playlist offset")
+        return page
 
-    async def play(self) -> None:
-        await self.request("PUT", "/me/player/play")
+    async def playlist_items(
+        self, playlist_id: str, offset: int = 0
+    ) -> Page[PlaylistEntry | None]:
+        if offset < 0 or not playlist_id:
+            raise ValueError("A playlist ID and nonnegative offset are required")
+        payload = await self.request(
+            "GET",
+            f"/playlists/{quote(playlist_id, safe='')}/items",
+            params={"offset": offset, "limit": 50},
+        )
+        try:
+            page = Page[PlaylistEntry | None].model_validate(payload)
+        except ValidationError:
+            raise SpotifyError("Spotify returned invalid playlist item data") from None
+        if page.offset != offset:
+            raise SpotifyError("Spotify returned an unexpected playlist item offset")
+        return page
 
-    async def next(self) -> None:
-        await self.request("POST", "/me/player/next")
+    async def pause(self, device_id: str | None = None) -> None:
+        await self.request(
+            "PUT",
+            "/me/player/pause",
+            params={"device_id": device_id} if device_id else None,
+        )
 
-    async def previous(self) -> None:
-        await self.request("POST", "/me/player/previous")
+    async def play(self, device_id: str | None = None) -> None:
+        await self.request(
+            "PUT",
+            "/me/player/play",
+            params={"device_id": device_id} if device_id else None,
+        )
+
+    async def next(self, device_id: str | None = None) -> None:
+        await self.request(
+            "POST",
+            "/me/player/next",
+            params={"device_id": device_id} if device_id else None,
+        )
+
+    async def previous(self, device_id: str | None = None) -> None:
+        await self.request(
+            "POST",
+            "/me/player/previous",
+            params={"device_id": device_id} if device_id else None,
+        )
+
+    async def play_playlist(
+        self, playlist_id: str, position: int, device_id: str | None = None
+    ) -> None:
+        if not playlist_id or position < 0:
+            raise ValueError("A playlist ID and nonnegative position are required")
+        await self.request(
+            "PUT",
+            "/me/player/play",
+            params={"device_id": device_id} if device_id else None,
+            json={
+                "context_uri": f"spotify:playlist:{playlist_id}",
+                "offset": {"position": position},
+            },
+        )
+
+    async def transfer(self, device_id: str) -> None:
+        if not device_id:
+            raise ValueError("A target device ID is required")
+        await self.request(
+            "PUT", "/me/player", json={"device_ids": [device_id], "play": False}
+        )

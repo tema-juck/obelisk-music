@@ -17,6 +17,7 @@ RUNTIME_FILES = {
     "obelisk_music/app.py",
     "obelisk_music/auth.py",
     "obelisk_music/models.py",
+    "obelisk_music/library.py",
     "obelisk_music/session.py",
     "obelisk_music/spotify.py",
     "obelisk_music/widgets.py",
