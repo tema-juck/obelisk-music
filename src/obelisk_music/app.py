@@ -1,4 +1,5 @@
 """Minimal keyboard-first Spotify Connect terminal UI."""
+
 from __future__ import annotations
 
 import asyncio
@@ -35,6 +36,7 @@ class ObeliskApp(App):
             "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8765/callback"
         )
         self.spotify: SpotifyClient | None = None
+        self.http = httpx.AsyncClient(timeout=15)
         self.is_playing = False
         self.busy = False
 
@@ -45,16 +47,23 @@ class ObeliskApp(App):
                 yield Static("M U S I C   /   S P O T I F Y", id="subtitle")
                 yield Static("● OFFLINE", id="connection")
 
-            yield Static("────────────────────────────────────────────────────────────", id="top-rule")
+            yield Static(
+                "────────────────────────────────────────────────────────────",
+                id="top-rule",
+            )
 
             with Horizontal(id="workspace"):
                 with Vertical(id="sidebar"):
                     yield Static("LIBRARY", classes="section-label")
-                    yield Static("▸  Now playing", id="nav-playing", classes="nav-active")
+                    yield Static(
+                        "▸  Now playing", id="nav-playing", classes="nav-active"
+                    )
                     yield Static("   Spotify Connect", classes="nav-item")
                     yield Static("", classes="sidebar-gap")
                     yield Static("SESSION", classes="section-label")
-                    yield Static("No active device", id="sidebar-device", classes="side-note")
+                    yield Static(
+                        "No active device", id="sidebar-device", classes="side-note"
+                    )
                     yield Static("", classes="sidebar-gap")
                     yield Static("SHORTCUTS", classes="section-label")
                     yield Static("space   play / pause", classes="side-note")
@@ -66,19 +75,28 @@ class ObeliskApp(App):
                 with Vertical(id="content"):
                     yield Static("NOW PLAYING", classes="section-label")
                     yield Static("Nothing playing", id="track")
-                    yield Static("Open Spotify Desktop and press L to connect", id="artist")
+                    yield Static(
+                        "Open Spotify Desktop and press L to connect", id="artist"
+                    )
                     yield Static("", id="album")
                     yield Static("", classes="flex-space")
-                    yield Static("─── ○ ───────────────────────────────────", id="progress")
+                    yield Static(
+                        "─── ○ ───────────────────────────────────", id="progress"
+                    )
                     with Horizontal(id="time-row"):
                         yield Static("0:00", id="elapsed")
                         yield Static("0:00", id="duration")
-                    yield Static("← PREV           ▷ PLAY           NEXT →", id="controls")
+                    yield Static(
+                        "← PREV           ▷ PLAY           NEXT →", id="controls"
+                    )
                     yield Static("", classes="content-bottom")
                     yield Static("OUTPUT", classes="section-label")
                     yield Static("Spotify Desktop · not connected", id="device")
 
-            yield Static("────────────────────────────────────────────────────────────", id="bottom-rule")
+            yield Static(
+                "────────────────────────────────────────────────────────────",
+                id="bottom-rule",
+            )
             with Horizontal(id="bottom-bar"):
                 yield Static("Press L to authorize Spotify", id="status")
                 yield Static("OBELISK / 0.2", id="version")
@@ -93,6 +111,9 @@ class ObeliskApp(App):
     def status(self, message: str) -> None:
         self.query_one("#status", Static).update(message)
 
+    async def on_unmount(self) -> None:
+        await self.http.aclose()
+
     @staticmethod
     def _clock(milliseconds: int) -> str:
         seconds = max(0, milliseconds // 1000)
@@ -100,9 +121,9 @@ class ObeliskApp(App):
 
     async def restore_session(self) -> None:
         try:
-            token = await asyncio.to_thread(refresh_access_token, self.client_id)
+            token = await refresh_access_token(self.client_id, self.http)
             if token:
-                self.spotify = SpotifyClient(token)
+                self.spotify = SpotifyClient(token.access_token.get_secret_value())
                 await self.refresh_player()
             else:
                 self.status("Press L to authorize Spotify")
@@ -156,11 +177,17 @@ class ObeliskApp(App):
         self.busy = True
         self.status("Opening Spotify login in browser...")
         try:
-            token = await asyncio.to_thread(
-                interactive_login, self.client_id, self.redirect_uri
+            token = await interactive_login(
+                self.client_id, self.redirect_uri, self.http
             )
-            self.spotify = SpotifyClient(token)
-        except (httpx.HTTPError, OSError, RuntimeError, ValueError, TimeoutError) as exc:
+            self.spotify = SpotifyClient(token.access_token.get_secret_value())
+        except (
+            httpx.HTTPError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            TimeoutError,
+        ) as exc:
             self.status(f"Login failed: {exc}")
         finally:
             self.busy = False
