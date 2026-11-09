@@ -29,7 +29,7 @@ NavigationTable:focus > .datatable--cursor { background: #294566; color: #edf4ff
 #progress { height: 1; color: #91b7ff; }
 #bottom-bar { height: 2; }
 #status { width: 1fr; height: 2; color: #9db8d8; text-wrap: wrap; }
-#version { width: 15; height: 1; text-align: right; color: #8c9bb0; }
+#version { width: 20; height: 1; text-align: right; color: #8c9bb0; }
 .compact #shell, .tiny #shell { padding: 0 1; }
 .compact #playlists-pane { width: 100%; padding-right: 0; }
 .compact #tracks-pane { display: none; }
