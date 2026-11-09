@@ -247,7 +247,9 @@ timestamps, and gzip headers are normalized. Bit-for-bit binary reproducibility
 across changing runner images, SDKs, or ad-hoc signatures is not guaranteed.
 
 After review, merge this infrastructure into `main` and require green CI. **Only
-after explicit release approval**, on the reviewed commit:
+after explicit release approval**, on the reviewed commit. These tag commands
+apply only to a new tag; `v0.2.0-alpha.1` already exists, so use the recovery
+procedure below for that version:
 
 ```bash
 git switch main
@@ -264,13 +266,70 @@ set without extracting or executing downloads, checks platform headers, package
 version, source commit, pinned tool versions, and binary checksums, then generates
 `SHA256SUMS`. It verifies the remote tag still points to the build commit.
 
-Publishing first creates a **draft**, uploads all three archives and checksums,
-verifies GitHub asset names/sizes/digests, rechecks the tag, and only then makes the
-release public. Alpha/beta/rc releases are marked prerelease and not Latest. A
-failed build produces no release; a failed upload or verification leaves only an
-unpublished draft. Inspect and remove that failed draft in GitHub before retrying,
-keeping the Git tag. Existing releases are never overwritten. Do not move a
-published tag; fix failures on a new version instead.
+Publishing discovers drafts through the authenticated, paginated release list,
+then creates a **draft** only if no matching release exists. It uploads missing
+archives/checksums, verifies every asset by release ID, rechecks the tag, and only
+then makes the release public. Alpha/beta/rc releases are marked prerelease and
+not Latest. A failed build produces no release; a failed upload or verification leaves only an
+unpublished draft. Retrying with the same validated artifacts reuses that draft,
+skips identical uploaded assets, and uploads only missing files without clobbering.
+Conflicting, unexpected, duplicate, or unfinished (`starter`) assets require manual
+investigation; the script neither deletes nor replaces them. An already published
+release is an unchanged success only if all expected assets match exactly;
+otherwise the script refuses changes. Avoid concurrent manual edits while it runs.
+
+A release is considered absent only after a successful complete release listing
+contains no match. Authentication/permission errors, repository 404s, rate limits,
+server errors, malformed responses, and network timeouts abort; they are never
+converted to "release missing." The published-release-by-tag endpoint cannot find
+drafts and is deliberately unused. See [GitHub's release API contracts](https://docs.github.com/en/rest/releases/releases).
+Do not move a published tag; use a new version for application changes.
+
+### Recover the first `v0.2.0-alpha.1` publication
+
+The original [release run 42706661576](https://github.com/tema-juck/obelisk-music/actions/runs/42706661576)
+passed quality checks and all three native build/smoke jobs. Its publish job created
+a draft, then failed by trying to find that draft through the published-release
+endpoint. The log confirms `Contents: write`; the 404 does not indicate missing
+publishing permission. The three build artifacts were unexpired when inspected
+on 2026-11-09, with expiry on 2026-11-23 UTC. Check their availability again before
+recovery. The existing annotated tag resolves to
+`290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c`; keep it unchanged.
+
+**Rerunning that tag-triggered workflow still executes the old tagged code.**
+Merging this fix into main does not update the old run. The safest recovery is to
+review/merge the fixed publisher, require green CI, then use that publisher with
+the original run's three artifacts and original source commit. This changes no
+application binary or tag and preserves all archive and publication gates.
+
+On a trusted machine with GitHub CLI authenticated with repository write access,
+from the reviewed fixed checkout, stage and validate without publishing:
+
+```bash
+export GH_HOST=github.com
+export UV_PYTHON=3.13.18
+recovery_dir="$(mktemp -d)"
+gh run view 42706661576 --repo github.com/tema-juck/obelisk-music --json headSha,jobs
+# Confirm the original commit above and success of quality + all three native jobs.
+gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-darwin-arm64 --dir "$recovery_dir"
+gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-darwin-amd64 --dir "$recovery_dir"
+gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-linux-amd64 --dir "$recovery_dir"
+uv run --no-project python scripts/release.py validate --tag v0.2.0-alpha.1 --commit 290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c --directory "$recovery_dir"
+```
+
+**Only after explicit publication approval**, in the same shell and fixed checkout:
+
+```bash
+uv run --no-project python scripts/release.py publish --tag v0.2.0-alpha.1 --commit 290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c --repository tema-juck/obelisk-music --directory "$recovery_dir"
+```
+
+This resumes the existing draft if visible to the authenticated publisher, verifies
+its assets against the original archives and regenerated checksums, and publishes
+only the complete set. It does not delete or move the tag. If artifacts have
+expired, stop and review a rebuild of the **original tagged commit** on all three
+native platforms; fresh binaries may not match existing draft assets. Do not
+clobber mismatches or substitute binaries built from current main. A new version
+is the safer option if recovering the original set is no longer possible.
 
 This repository does not publish to PyPI, create Homebrew taps, or build Linux
 ARM64 in this workflow. Platform verification claims require an actual native
