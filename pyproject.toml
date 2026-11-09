@@ -1,0 +1,28 @@
+[project]
+name = "obelisk-music"
+version = "0.2.0"
+description = "Keyboard-first Spotify Connect terminal controller"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Obelisk Music contributors"}]
+dependencies = ["textual>=0.80", "httpx>=0.27", "keyring>=25"]
+
+[project.scripts]
+obelisk = "obelisk_music.app:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obelisk_music"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/obelisk_music/obelisk.tcss" = "obelisk_music/obelisk.tcss"

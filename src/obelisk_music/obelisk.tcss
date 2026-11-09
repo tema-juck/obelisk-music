@@ -1,0 +1,30 @@
+/* Obelisk Music: intentionally borderless and keyboard-first. */
+Screen { background: #0c1118; color: #dbe5f1; }
+#shell { width: 100%; height: 100%; padding: 1 3 0 3; }
+#topbar { height: 2; width: 100%; align: left middle; }
+#brand { width: 19; color: #91b7ff; text-style: bold; }
+#subtitle { width: 1fr; color: #65748a; }
+#connection { width: 15; text-align: right; color: #75bda1; }
+#top-rule, #bottom-rule { height: 1; color: #273343; }
+#workspace { height: 1fr; min-height: 12; }
+#sidebar { width: 29; padding: 2 2 0 0; border-right: solid #253142; }
+#content { width: 1fr; padding: 2 3 0 4; }
+.section-label { height: 2; color: #64768d; text-style: bold; }
+#nav-playing { height: 2; color: #92baff; text-style: bold; }
+.nav-item { height: 2; color: #a2b0c1; }
+.side-note { height: auto; color: #8091a4; }
+.sidebar-gap { height: 2; }
+#track { height: auto; min-height: 2; color: #f1f5fc; text-style: bold; text-wrap: wrap; }
+#artist { height: auto; color: #9eb2cc; }
+#album { height: auto; color: #7386a1; margin-top: 1; }
+.flex-space { height: 1fr; min-height: 1; }
+#progress { height: 1; color: #91b7ff; }
+#time-row { height: 2; color: #697d97; }
+#elapsed { width: 1fr; }
+#duration { width: 1fr; text-align: right; }
+#controls { height: 3; color: #cbd8e8; text-align: center; }
+.content-bottom { height: 2; }
+#device { color: #acbbcc; }
+#bottom-bar { height: 2; }
+#status { width: 1fr; color: #8aa5c5; }
+#version { width: 18; text-align: right; color: #57677a; }
