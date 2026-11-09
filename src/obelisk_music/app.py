@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 from typing import ClassVar
@@ -14,6 +15,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Input
 from textual.worker import Worker
 
+from . import __version__
 from .auth import AuthError
 from .browser import LibraryBrowser
 from .library import SpotifyLibrary
@@ -76,7 +78,7 @@ class ObeliskApp(App):
             yield NowPlaying(id="content")
             with Horizontal(id="bottom-bar"):
                 yield FeedbackBar(id="status")
-                yield PlainText("OBELISK / 0.2", id="version")
+                yield PlainText(f"OBELISK / {__version__}", id="version")
 
     def on_mount(self) -> None:
         self._layout(self.size.width, self.size.height)
@@ -414,6 +416,13 @@ class ObeliskApp(App):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="obelisk", description="Keyboard-first Spotify Connect controller"
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.parse_args()
     ObeliskApp().run()
 
 
