@@ -6,6 +6,97 @@ Python · Textual · Spotify Web API · macOS / Linux
 
 > **Status:** experimental MVP. Obelisk does not decrypt or stream Spotify audio. Spotify Desktop or another Spotify Connect device handles audio playback.
 
+## Install a standalone pre-release
+
+The first planned pre-release is **v0.2.0-alpha.1**. These downloads become
+available only after its release workflow succeeds. Standalone executables include
+Python and runtime dependencies; installing Python or uv is not required.
+
+Choose the target matching your computer:
+
+| Computer | Target | Native build runner |
+| --- | --- | --- |
+| macOS Apple Silicon | `darwin-arm64` | `macos-15` ARM64 |
+| macOS Intel | `darwin-amd64` | `macos-15-intel` x86_64 |
+| Linux Intel/AMD 64-bit | `linux-amd64` | `ubuntu-22.04` x86_64 |
+
+Linux builds target glibc systems (Ubuntu 22.04 or newer is the build baseline),
+not Alpine/musl. Older macOS versions are not verified. Linux ARM64 and Homebrew
+installation are not provided.
+
+Download from [GitHub Releases](https://github.com/tema-juck/obelisk-music/releases).
+For example, for Apple Silicon, run the following in an empty download directory;
+replace `darwin-arm64` with `darwin-amd64` for Intel macOS or `linux-amd64` for Linux:
+
+```bash
+release=v0.2.0-alpha.1
+target=darwin-arm64
+asset="obelisk-${release}-${target}.tar.gz"
+base="https://github.com/tema-juck/obelisk-music/releases/download/${release}"
+curl --fail --location --output "$asset" "$base/$asset"
+curl --fail --location --output SHA256SUMS "$base/SHA256SUMS"
+awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS > "$asset.sha256"
+test -s "$asset.sha256"
+```
+
+Verify **before extracting or installing**. The checksum file contains all three
+archives, so the commands above select only the one you downloaded:
+
+```bash
+# macOS: this must print OK and exit successfully
+shasum -a 256 -c "$asset.sha256"
+
+# Linux: use this instead
+sha256sum -c "$asset.sha256"
+```
+
+After verification succeeds:
+
+```bash
+tar -xzf "$asset" obelisk
+mkdir -p "$HOME/.local/bin"
+install -m 755 obelisk "$HOME/.local/bin/obelisk"
+export PATH="$HOME/.local/bin:$PATH"
+obelisk --help
+obelisk --version
+```
+
+Add `$HOME/.local/bin` to your shell's PATH permanently if necessary. To update,
+quit Obelisk, download the new version, verify its checksum, and repeat the install
+step. To uninstall, remove `~/.local/bin/obelisk`. Refresh tokens stay in your OS
+keychain; remove the `obelisk-music` entry there if you also want to remove login
+credentials.
+
+These initial macOS binaries use ad-hoc signing, not Developer ID signing or Apple
+notarization. If macOS blocks a verified download, follow Apple's
+[Open Anyway procedure in Privacy & Security](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+Do not disable Gatekeeper or remove security protections. Checksums detect file
+corruption; they are not a publisher identity signature.
+
+### Configure Spotify and start
+
+Create your own Spotify Developer app, register
+`http://127.0.0.1:8765/callback` exactly, and allowlist your Spotify account. Spotify
+Premium and a Spotify Connect playback device are required.
+
+```bash
+export SPOTIFY_CLIENT_ID="your_client_id_here"
+obelisk
+```
+
+Press **L** to authorize. A client ID is public application identification; no
+client secret is needed. Never place access or refresh tokens in shell setup,
+the repository, or release archives. `.env` files are not loaded automatically.
+
+### Troubleshooting
+
+- **Command not found:** check `~/.local/bin` is on PATH, or run that executable by its full path.
+- **Wrong architecture / bad CPU type:** use the archive matching your hardware; builds are native, not universal or cross-compiled.
+- **Login fails:** verify the client ID, exact callback URL, account allowlist, and that port 8765 is available. Obelisk reports locked/unavailable keychains instead of storing tokens in plaintext.
+- **Linux keychain unavailable:** use a desktop session with a running Secret Service keyring and D-Bus session. Headless servers may not provide a secure credential backend.
+- **No playback device:** open Spotify, start playback, then press **D** to select a controllable device. Restricted or disappeared devices cannot accept commands.
+- **One-file startup fails:** PyInstaller needs a writable temporary directory that permits loading executable code. The smoke test also requires a real PTY and OS IPC support; restrictive sandboxes can block these.
+
 ## Features
 
 - Spotify authorization using OAuth 2.0 PKCE (no client secret)
@@ -23,6 +114,7 @@ Python · Textual · Spotify Web API · macOS / Linux
 ## Getting started
 
 Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), and Spotify Premium.
+This section is for running from source. Standalone installation is described above.
 
 1. Create your **own** Spotify Developer application with **Web API** selected.
 2. Set the redirect URI exactly to `http://127.0.0.1:8765/callback`.
@@ -120,6 +212,69 @@ access. No Spotify credentials are needed. Dependency installation and building
 can download packages from PyPI; the tests and installed-app probe do not contact
 Spotify. Local checks do not establish that GitHub-hosted jobs have passed;
 those results are available only after the workflow runs on GitHub.
+
+## Release procedure (maintainers)
+
+`pyproject.toml` is the application version authority. Runtime `__version__`, the
+TUI footer, and `obelisk --version` read installed package metadata. PEP 440
+`0.2.0a1` corresponds to tag `v0.2.0-alpha.1`; beta and rc tags similarly map to
+`bN` and `rcN`. Mismatched, malformed, dev, or local-version tags are rejected.
+
+Release tools are frozen in `uv.lock`, including PyInstaller 6.22.3 and Hatchling
+1.33.0. The release workflow pins uv 0.13.7 and Python 3.13.18. On each target OS,
+the local equivalent is:
+
+```bash
+export UV_PYTHON=3.13.18
+uv sync --frozen --dev --group release
+uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.1
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q
+uv build
+uv run python scripts/smoke_wheel.py dist/*.whl
+# Choose the native target from the platform table; other targets are refused.
+uv run python scripts/build_binary.py --tag v0.2.0-alpha.1 --target darwin-arm64
+```
+
+The binary smoke copies `obelisk` outside the checkout, clears Spotify/Python
+configuration variables, checks help/version, waits for the real styled TUI to
+render in an 80×24 PTY, sends **Q**, and requires successful exit. Help/version
+have 30-second timeouts; startup/quit has 45 seconds; the build has 15 minutes.
+No Spotify credentials are required. Archives contain only `obelisk`, `LICENSE`,
+and version/platform/commit/checksum build metadata. Tar ordering, ownership,
+timestamps, and gzip headers are normalized. Bit-for-bit binary reproducibility
+across changing runner images, SDKs, or ad-hoc signatures is not guaranteed.
+
+After review, merge this infrastructure into `main` and require green CI. **Only
+after explicit release approval**, on the reviewed commit:
+
+```bash
+git switch main
+git pull --ff-only
+uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.1
+git tag -a v0.2.0-alpha.1 -m "Obelisk Music v0.2.0-alpha.1"
+git push origin v0.2.0-alpha.1
+```
+
+The tag-only release workflow first runs quality/wheel checks, then all three
+native regression/build/smoke jobs with read-only repository permissions. Only
+the publishing job receives `contents: write`. It validates the complete archive
+set without extracting or executing downloads, checks platform headers, package
+version, source commit, pinned tool versions, and binary checksums, then generates
+`SHA256SUMS`. It verifies the remote tag still points to the build commit.
+
+Publishing first creates a **draft**, uploads all three archives and checksums,
+verifies GitHub asset names/sizes/digests, rechecks the tag, and only then makes the
+release public. Alpha/beta/rc releases are marked prerelease and not Latest. A
+failed build produces no release; a failed upload or verification leaves only an
+unpublished draft. Inspect and remove that failed draft in GitHub before retrying,
+keeping the Git tag. Existing releases are never overwritten. Do not move a
+published tag; fix failures on a new version instead.
+
+This repository does not publish to PyPI, create Homebrew taps, or build Linux
+ARM64 in this workflow. Platform verification claims require an actual native
+smoke result; local Apple Silicon checks do not verify Intel macOS or Linux.
 
 ## Limitations
 
