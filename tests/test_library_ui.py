@@ -123,6 +123,8 @@ def test_navigation_panes_and_plain_metadata():
             table = app.query_one("#playlists", NavigationTable)
             assert table.row_count == 2
             assert str(table.get_cell("0", "1")) == "[red]one[/red]"
+            assert str(table.get_cell("0", "2")) == "Owner"
+            assert str(table.get_cell("0", "3")) == "53"
             await pilot.press("j")
             assert table.cursor_row == 1
             await pilot.press("k", "down", "up", "enter")
@@ -402,7 +404,10 @@ def test_focused_text_input_does_not_trigger_application_commands():
             await pilot.press("q", "n", "p", "d", "l", "r", "space", "question_mark")
             assert field.value == "qnpdlr ?"
             assert app.is_running and len(app.screen_stack) == 1
-            assert not stub.calls
+            assert all(
+                request.method == "GET" and request.url.path == "/v1/me/player"
+                for request in stub.calls
+            )
 
     asyncio.run(run())
 
@@ -538,5 +543,38 @@ def test_playlist_network_failure_can_retry_and_empty_tracks_are_visible():
             await settle(app)
             assert "No tracks" in text(app, "#library-message")
             assert app.session.authorized
+
+    asyncio.run(run())
+
+
+def test_new_login_clears_library_cache_and_device_target(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    async def run():
+        monkeypatch.setenv("SPOTIFY_CLIENT_ID", "test-client")
+        stub = SpotifyStub()
+        app = app_for(stub)
+
+        async def login(uri):
+            app.session._install(Token(access_token="new-test-access", expires_in=3600))
+
+        monkeypatch.setattr(app.session, "login", AsyncMock(side_effect=login))
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await settle(app)
+            assert app.query_one(LibraryBrowser).playlists
+            await pilot.press("enter")
+            await settle(app)
+            assert "one" in app.library.tracks
+            app.target_device_id = "speaker"
+            stub.playlists = [playlist("new-account")]
+            await pilot.press("l")
+            await settle(app)
+            browser = app.query_one(LibraryBrowser)
+            assert browser.playlists[0][1].id == "new-account"
+            assert browser.playlist is None and not browser.tracks
+            assert not app.library.tracks
+            assert app.target_device_id is None
+            assert text(app, "#tracks-title") == "TRACKS"
 
     asyncio.run(run())
