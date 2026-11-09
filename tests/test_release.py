@@ -9,6 +9,7 @@ import platform
 import subprocess
 import tarfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -188,140 +189,314 @@ def prepare_set(tmp_path):
         make_archive(tmp_path, target)
 
 
-def test_publish_waits_for_verified_assets_and_handles_annotated_tag(
-    tmp_path, monkeypatch
-):
+def asset(path):
+    return {
+        "name": path.name,
+        "size": path.stat().st_size,
+        "digest": "sha256:" + release.sha256(path),
+        "state": "uploaded",
+    }
+
+
+@pytest.fixture
+def github(tmp_path, monkeypatch):
     prepare_set(tmp_path)
-    calls = []
+    files = release.validate_set(tmp_path, TAG, COMMIT)
+    remote = SimpleNamespace(
+        document=None,
+        calls=[],
+        files=files,
+        error=None,
+        upload_error=None,
+        bad_upload=False,
+        moved=False,
+        interrupted_create=False,
+        interrupted_patch=False,
+        reads=0,
+        on_read=lambda: None,
+    )
 
     def fake_gh(*args):
-        calls.append(args)
-        if args[0] == "api" and "/git/ref/tags/" in args[-1]:
+        remote.calls.append(args)
+        if args[:2] == ("release", "upload"):
+            path = Path(args[3])
+            assert "--clobber" not in args
+            assert "github.com/owner/repo" in args
+            assert remote.document["draft"]
+            assert path.name not in {a["name"] for a in remote.document["assets"]}
+            if remote.bad_upload == "missing":
+                return ""
+            remote.document["assets"].append(asset(path))
+            if remote.bad_upload:
+                remote.document["assets"][-1]["digest"] = "sha256:wrong"
+            if remote.upload_error:
+                raise remote.upload_error
+            return ""
+        assert args[:4] == ("api", "--hostname", "github.com", "--method")
+        method, endpoint = args[4:6]
+        if "/git/ref/tags/" in endpoint:
             return json.dumps({"object": {"type": "tag", "sha": "b" * 40}})
-        if args[0] == "api" and "/git/tags/" in args[-1]:
-            return json.dumps({"object": {"type": "commit", "sha": COMMIT}})
-        if args[0] == "api":
-            return json.dumps(
-                {
-                    "draft": True,
-                    "prerelease": True,
-                    "tag_name": TAG,
-                    "assets": [
-                        {
-                            "name": p.name,
-                            "size": p.stat().st_size,
-                            "digest": "sha256:" + release.sha256(p),
-                        }
-                        for p in tmp_path.iterdir()
-                    ],
-                }
-            )
-        return ""
-
-    monkeypatch.setattr(release, "gh", fake_gh)
-    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
-    creates = [c for c in calls if c[:2] == ("release", "create")]
-    assert (
-        len(creates) == 1
-        and "--draft" in creates[0]
-        and "--verify-tag" in creates[0]
-        and "--prerelease" in creates[0]
-    )
-    assert "github.com/owner/repo" in creates[0]
-    assert (
-        calls[-1][:2] == ("release", "edit")
-        and "--draft=false" in calls[-1]
-        and "--latest=false" in calls[-1]
-    )
-
-
-@pytest.mark.parametrize(
-    "failure", ["upload", "missing-assets", "wrong-digest", "moved-tag"]
-)
-def test_publish_failures_never_publish_a_partial_release(
-    tmp_path, monkeypatch, failure
-):
-    prepare_set(tmp_path)
-    calls = []
-
-    def fake_gh(*args):
-        calls.append(args)
-        if args[0] == "api" and "/git/ref/tags/" in args[-1]:
+        if "/git/tags/" in endpoint:
             return json.dumps(
                 {
                     "object": {
                         "type": "commit",
-                        "sha": "b" * 40 if failure == "moved-tag" else COMMIT,
+                        "sha": "c" * 40 if remote.moved else COMMIT,
                     }
                 }
             )
-        if args[:2] == ("release", "create") and failure == "upload":
-            raise subprocess.CalledProcessError(1, args)
-        if args[0] == "api":
-            assets = (
-                []
-                if failure == "missing-assets"
-                else [
-                    {"name": p.name, "size": p.stat().st_size, "digest": "sha256:wrong"}
-                    for p in tmp_path.iterdir()
-                ]
+        if "/releases/tags/" in endpoint:
+            raise subprocess.CalledProcessError(
+                1, args, stderr="gh: Not Found (HTTP 404)"
             )
+        if endpoint.endswith("releases?per_page=100"):
+            assert method == "GET" and "--paginate" in args and "--slurp" in args
+            if remote.error:
+                raise remote.error
+            # A matching draft can be on a later page, behind unrelated releases.
             return json.dumps(
-                {"draft": True, "prerelease": True, "tag_name": TAG, "assets": assets}
+                [[{"tag_name": "v0.1.0"}], [remote.document] if remote.document else []]
             )
-        return ""
+        if method == "POST":
+            assert endpoint == "repos/owner/repo/releases"
+            assert remote.document is None
+            assert f"target_commitish={COMMIT}" in args
+            assert "draft=true" in args and "prerelease=true" in args
+            remote.document = draft([])
+            if remote.interrupted_create:
+                raise subprocess.TimeoutExpired("gh", 300)
+        else:
+            assert endpoint == "repos/owner/repo/releases/17"
+            if method == "PATCH":
+                assert len(remote.document["assets"]) == 4
+                assert "draft=false" in args and "make_latest=false" in args
+                remote.document["draft"] = False
+                if remote.interrupted_patch:
+                    raise subprocess.TimeoutExpired("gh", 300)
+            else:
+                assert method == "GET"
+                remote.reads += 1
+                remote.on_read()
+        return json.dumps(remote.document)
 
     monkeypatch.setattr(release, "gh", fake_gh)
-    with pytest.raises((ValueError, subprocess.CalledProcessError)):
+    return remote
+
+
+def draft(assets):
+    return {
+        "id": 17,
+        "draft": True,
+        "prerelease": True,
+        "tag_name": TAG,
+        "assets": assets,
+    }
+
+
+def mutations(remote):
+    return [
+        c
+        for c in remote.calls
+        if c[:2] == ("release", "upload") or (c[0] == "api" and c[4] != "GET")
+    ]
+
+
+def test_first_release_tag_lookup_404_does_not_hide_new_draft(github, tmp_path):
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] is False
+    assert len(github.document["assets"]) == 4
+    assert sum(c[0] == "api" and c[4] == "POST" for c in github.calls) == 1
+    assert not any("/releases/tags/" in str(c) for c in github.calls)
+    assert github.calls[-1][4:6] == ("PATCH", "repos/owner/repo/releases/17")
+
+
+@pytest.mark.parametrize("existing", [0, 2, 4])
+def test_existing_draft_resumes_only_missing_assets(github, tmp_path, existing):
+    github.document = draft([asset(p) for p in github.files[:existing]])
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] is False
+    assert not any(c[0] == "api" and c[4] == "POST" for c in github.calls)
+    assert sum(c[:2] == ("release", "upload") for c in github.calls) == 4 - existing
+
+
+def test_existing_published_release_is_unchanged(github, tmp_path, capsys):
+    github.document = draft([asset(p) for p in github.files])
+    github.document["draft"] = False
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not mutations(github)
+    assert "already published" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("kind", ["digest", "extra", "duplicate", "starter"])
+@pytest.mark.parametrize("published", [False, True])
+def test_conflicting_assets_are_never_replaced(github, tmp_path, kind, published):
+    github.document = draft([asset(p) for p in github.files])
+    github.document["draft"] = not published
+    assets = github.document["assets"]
+    if kind == "digest":
+        assets[0]["digest"] = "sha256:wrong"
+    elif kind == "extra":
+        assets.append({**assets[0], "name": "unexpected"})
+    elif kind == "duplicate":
+        assets.append(assets[0].copy())
+    else:
+        assets[0]["state"] = "starter"
+    with pytest.raises(ValueError):
         release.publish(tmp_path, TAG, COMMIT, "owner/repo")
-    assert not any(c[:2] == ("release", "edit") for c in calls)
-    if failure == "moved-tag":
-        assert not any(c[:2] == ("release", "create") for c in calls)
+    assert not mutations(github)
+
+
+def test_published_release_missing_assets_is_never_modified(github, tmp_path):
+    github.document = draft([asset(p) for p in github.files[:-1]])
+    github.document["draft"] = False
+    with pytest.raises(ValueError, match="Published release is incomplete"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not mutations(github)
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 429, 500, 503])
+def test_api_errors_are_not_treated_as_a_missing_release(github, tmp_path, status):
+    error = subprocess.CalledProcessError(1, "gh", stderr=f"HTTP {status}")
+    github.error = error
+    with pytest.raises(subprocess.CalledProcessError) as exc:
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert exc.value is error
+    assert not mutations(github)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("network unavailable"),
+        subprocess.TimeoutExpired("gh", 300),
+        json.JSONDecodeError("invalid response", "", 0),
+    ],
+)
+def test_transport_and_invalid_api_responses_stop_publication(github, tmp_path, error):
+    github.error = error
+    with pytest.raises(type(error)):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not mutations(github)
+
+
+def test_retry_after_upload_response_is_lost(github, tmp_path):
+    github.upload_error = subprocess.TimeoutExpired("gh", 300)
+    with pytest.raises(subprocess.TimeoutExpired):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] and len(github.document["assets"]) == 1
+    github.upload_error = None
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] is False
+    assert sum(c[:2] == ("release", "upload") for c in github.calls) == 4
+
+
+def test_retry_after_draft_creation_response_is_lost(github, tmp_path):
+    github.interrupted_create = True
+    with pytest.raises(subprocess.TimeoutExpired):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] and not github.document["assets"]
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] is False
+    assert sum(c[0] == "api" and c[4] == "POST" for c in github.calls) == 1
+
+
+def test_retry_after_publication_response_is_lost(github, tmp_path):
+    github.interrupted_patch = True
+    with pytest.raises(subprocess.TimeoutExpired):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"] is False
+    previous_mutations = mutations(github)
+    release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert mutations(github) == previous_mutations
+
+
+@pytest.mark.parametrize("failure", ["digest", "missing"])
+def test_uploaded_asset_mismatch_prevents_publication(github, tmp_path, failure):
+    github.bad_upload = failure
+    with pytest.raises(ValueError, match="assets failed verification"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"]
+    assert not any(c[0] == "api" and c[4] == "PATCH" for c in github.calls)
+
+
+def test_tag_moved_before_creation_prevents_mutations(github, tmp_path):
+    github.moved = True
+    with pytest.raises(ValueError, match="tag moved"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not mutations(github)
+
+
+def test_tag_moved_after_upload_leaves_draft_unpublished(github, tmp_path):
+    github.on_read = lambda: setattr(github, "moved", True)
+    with pytest.raises(ValueError, match="tag moved"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert github.document["draft"]
+    assert not any(c[0] == "api" and c[4] == "PATCH" for c in github.calls)
+
+
+def test_tag_moved_during_discovery_prevents_draft_creation(
+    github, tmp_path, monkeypatch
+):
+    original = release.find_release
+
+    def moved_during_listing(repository, tag):
+        result = original(repository, tag)
+        github.moved = True
+        return result
+
+    monkeypatch.setattr(release, "find_release", moved_during_listing)
+    with pytest.raises(ValueError, match="tag moved"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not mutations(github)
+
+
+def test_release_published_during_upload_is_not_modified(github, tmp_path):
+    github.on_read = lambda: github.document.update(draft=False)
+    with pytest.raises(ValueError, match="published during upload"):
+        release.publish(tmp_path, TAG, COMMIT, "owner/repo")
+    assert not any(c[:2] == ("release", "upload") for c in github.calls)
 
 
 def test_invalid_archives_never_invoke_github(tmp_path, monkeypatch):
-    def forbidden(*args):
-        raise AssertionError("GitHub called before artifact validation")
-
-    monkeypatch.setattr(release, "gh", forbidden)
+    monkeypatch.setattr(
+        release, "gh", lambda *args: pytest.fail("GitHub called before validation")
+    )
     with pytest.raises(ValueError, match="exactly three"):
         release.publish(tmp_path, TAG, COMMIT, "owner/repo")
 
 
-def test_remote_tag_moving_after_upload_leaves_draft_unpublished(tmp_path, monkeypatch):
+def test_validation_is_repeatable_and_rejects_modified_checksums(tmp_path):
     prepare_set(tmp_path)
-    calls = []
+    assert release.validate_set(tmp_path, TAG, COMMIT) == release.validate_set(
+        tmp_path, TAG, COMMIT
+    )
+    (tmp_path / "SHA256SUMS").write_text("tampered")
+    with pytest.raises(ValueError, match="SHA256SUMS"):
+        release.validate_set(tmp_path, TAG, COMMIT)
 
-    def fake_gh(*args):
-        calls.append(args)
-        if args[0] == "api" and "/git/ref/tags/" in args[-1]:
-            uploaded = any(call[:2] == ("release", "create") for call in calls)
-            return json.dumps(
-                {"object": {"type": "commit", "sha": "b" * 40 if uploaded else COMMIT}}
-            )
-        if args[0] == "api":
-            return json.dumps(
-                {
-                    "draft": True,
-                    "prerelease": True,
-                    "tag_name": TAG,
-                    "assets": [
-                        {
-                            "name": p.name,
-                            "size": p.stat().st_size,
-                            "digest": "sha256:" + release.sha256(p),
-                        }
-                        for p in tmp_path.iterdir()
-                    ],
-                }
-            )
-        return ""
 
-    monkeypatch.setattr(release, "gh", fake_gh)
-    with pytest.raises(ValueError, match="Remote tag moved"):
+def test_checksum_symlink_is_not_followed(tmp_path):
+    prepare_set(tmp_path)
+    outside = tmp_path.parent / (tmp_path.name + "-outside")
+    outside.write_text("untouched")
+    (tmp_path / "SHA256SUMS").symlink_to(outside)
+    with pytest.raises(ValueError, match="SHA256SUMS"):
+        release.validate_set(tmp_path, TAG, COMMIT)
+    assert outside.read_text() == "untouched"
+
+
+def test_multiple_matching_releases_prevent_publication(github, tmp_path, monkeypatch):
+    original = release.gh
+
+    def duplicated(*args):
+        if "repos/owner/repo/releases?per_page=100" in args:
+            return json.dumps([[draft([])], [draft([])]])
+        return original(*args)
+
+    monkeypatch.setattr(release, "gh", duplicated)
+    with pytest.raises(ValueError, match="Multiple releases"):
         release.publish(tmp_path, TAG, COMMIT, "owner/repo")
-    assert any(call[:2] == ("release", "create") for call in calls)
-    assert not any(call[:2] == ("release", "edit") for call in calls)
+    assert not mutations(github)
 
 
 def test_binary_smoke_failure_reports_diagnostics(tmp_path, monkeypatch):

@@ -194,14 +194,18 @@ def validate_set(directory: Path, tag: str, commit: str) -> list[Path]:
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("A full source commit is required")
     archives = [directory / archive_name(tag, target) for target in TARGETS]
-    if {path.name for path in directory.iterdir()} != {path.name for path in archives}:
+    names = {path.name for path in directory.iterdir()}
+    if names - {"SHA256SUMS"} != {path.name for path in archives}:
         raise ValueError("Expected exactly three native release archives")
     for archive, target in zip(archives, TARGETS, strict=True):
         validate_archive(archive, tag, target, commit)
     checksums = directory / "SHA256SUMS"
-    checksums.write_text(
-        "".join(f"{sha256(path)}  {path.name}\n" for path in sorted(archives))
-    )
+    content = "".join(f"{sha256(path)}  {path.name}\n" for path in sorted(archives))
+    if checksums.is_symlink() or (
+        checksums.exists() and checksums.read_text() != content
+    ):
+        raise ValueError("Existing SHA256SUMS does not match validated archives")
+    checksums.write_text(content)
     return [*archives, checksums]
 
 
@@ -210,6 +214,49 @@ def gh(*args: str) -> str:
         ["gh", *args], check=True, text=True, stdout=subprocess.PIPE, timeout=300
     )
     return result.stdout
+
+
+def github_api(path: str, method: str = "GET", *fields: str) -> dict | list:
+    return json.loads(
+        gh("api", "--hostname", "github.com", "--method", method, path, *fields)
+    )
+
+
+def find_release(repository: str, tag: str) -> dict | None:
+    # The tag endpoint only finds published releases; list includes visible drafts.
+    pages = github_api(
+        f"repos/{repository}/releases?per_page=100", "GET", "--paginate", "--slurp"
+    )
+    matches = [item for page in pages for item in page if item["tag_name"] == tag]
+    if len(matches) > 1:
+        raise ValueError("Multiple releases have this tag; refusing ambiguous retry")
+    return matches[0] if matches else None
+
+
+def missing_assets(release: dict, files: list[Path], tag: str) -> list[Path]:
+    if (
+        release["tag_name"] != tag
+        or release["prerelease"] != verify_tag(tag)
+        or not isinstance(release["draft"], bool)
+    ):
+        raise ValueError("Release metadata does not match the validated tag")
+    expected = {
+        path.name: (path.stat().st_size, "sha256:" + sha256(path)) for path in files
+    }
+    assets = release["assets"]
+    actual = {asset["name"]: (asset["size"], asset.get("digest")) for asset in assets}
+    if (
+        len(actual) != len(assets)
+        or any(asset["state"] != "uploaded" for asset in assets)
+        or any(
+            name not in expected or value != expected[name]
+            for name, value in actual.items()
+        )
+    ):
+        raise ValueError(
+            "Existing release assets failed verification; no assets replaced"
+        )
+    return [path for path in files if path.name not in actual]
 
 
 def verify_remote_tag(repository: str, tag: str, commit: str) -> None:
@@ -249,51 +296,63 @@ def publish(directory: Path, tag: str, commit: str, repository: str) -> None:
     files = validate_set(directory, tag, commit)
     prerelease = verify_tag(tag)
     verify_remote_tag(repository, tag, commit)
-    # A draft is invisible publicly; failed uploads must never publish it.
-    args = [
-        "release",
-        "create",
-        tag,
-        "--repo",
-        f"github.com/{repository}",
-        "--verify-tag",
-        "--draft",
-        "--title",
-        f"Obelisk Music {tag}",
-        "--notes",
-        "Standalone Spotify Connect controller. See README for installation, checksums, and platform limitations.",
-    ]
-    if prerelease:
-        args.append("--prerelease")
-    gh(*args, *(str(path) for path in files))
-    release = json.loads(
-        gh("api", "--hostname", "github.com", f"repos/{repository}/releases/tags/{tag}")
-    )
-    expected = {
-        path.name: (path.stat().st_size, "sha256:" + sha256(path)) for path in files
-    }
-    actual = {
-        asset["name"]: (asset["size"], asset.get("digest"))
-        for asset in release["assets"]
-    }
-    if (
-        not release["draft"]
-        or release["tag_name"] != tag
-        or release["prerelease"] != prerelease
-        or len(release["assets"]) != len(files)
-        or actual != expected
-    ):
-        raise ValueError("Draft assets failed verification; draft left unpublished")
+    release = find_release(repository, tag)
+    if release is None:
+        verify_remote_tag(repository, tag, commit)
+        release = github_api(
+            f"repos/{repository}/releases",
+            "POST",
+            "-f",
+            f"tag_name={tag}",
+            "-f",
+            f"target_commitish={commit}",
+            "-F",
+            "draft=true",
+            "-F",
+            f"prerelease={str(prerelease).lower()}",
+            "-f",
+            f"name=Obelisk Music {tag}",
+            "-f",
+            "body=Standalone Spotify Connect controller. See README for installation, checksums, and platform limitations.",
+        )
+    missing = missing_assets(release, files, tag)
+    if not release["draft"]:
+        if missing:
+            raise ValueError("Published release is incomplete; refusing any changes")
+        print(f"{tag} is already published with matching assets; unchanged")
+        return
+    release_id = release["id"]
+    if type(release_id) is not int or release_id <= 0:
+        raise ValueError("Invalid release ID")
+    endpoint = f"repos/{repository}/releases/{release_id}"
+    for path in missing:
+        current = github_api(endpoint)
+        remaining = missing_assets(current, files, tag)
+        if not current["draft"]:
+            raise ValueError("Release was published during upload; refusing changes")
+        if path in remaining:
+            # No --clobber: an uncertain upload is reconciled on the next invocation.
+            gh(
+                "release",
+                "upload",
+                tag,
+                str(path),
+                "--repo",
+                f"github.com/{repository}",
+            )
+    current = github_api(endpoint)
+    if missing_assets(current, files, tag) or not current["draft"]:
+        raise ValueError("Draft assets failed verification; no publication attempted")
     verify_remote_tag(repository, tag, commit)
-    gh(
-        "release",
-        "edit",
-        tag,
-        "--repo",
-        f"github.com/{repository}",
-        "--draft=false",
-        f"--prerelease={str(prerelease).lower()}",
-        f"--latest={str(not prerelease).lower()}",
+    github_api(
+        endpoint,
+        "PATCH",
+        "-F",
+        "draft=false",
+        "-F",
+        f"prerelease={str(prerelease).lower()}",
+        "-f",
+        f"make_latest={str(not prerelease).lower()}",
     )
 
 
