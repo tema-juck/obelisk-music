@@ -422,7 +422,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "keyring", specifier = ">=25" },
     { name = "pydantic", specifier = ">=2,<3" },
-    { name = "textual", specifier = ">=0.80" },
+    { name = "textual", specifier = ">=0.86" },
 ]
 
 [package.metadata.requires-dev]

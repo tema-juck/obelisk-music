@@ -21,7 +21,16 @@ def test_tests_cannot_access_network_or_credentials():
 
 
 @pytest.mark.parametrize(
-    "missing", ["obelisk.tcss", "models.py", "library.py", "browser.py", "screens.py"]
+    "missing",
+    [
+        "obelisk.tcss",
+        "models.py",
+        "library.py",
+        "browser.py",
+        "screens.py",
+        "config.py",
+        "cli.py",
+    ],
 )
 def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing):
     wheel = tmp_path / "broken.whl"
@@ -29,6 +38,8 @@ def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing
         for name in [
             "__init__.py",
             "app.py",
+            "config.py",
+            "cli.py",
             "auth.py",
             "models.py",
             "library.py",

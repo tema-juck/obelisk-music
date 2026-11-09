@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from release import binary_target, native_target, project_version
+from smoke_config import check_config
 
 
 def smoke(binary: Path, version: str) -> None:
@@ -29,12 +30,22 @@ def smoke(binary: Path, version: str) -> None:
         key: value
         for key, value in os.environ.items()
         if not key.startswith(
-            ("SPOTIFY_", "PYTHON", "UV_", "_PYI", "PYINSTALLER", "DYLD_", "LD_")
+            (
+                "SPOTIFY_",
+                "OBELISK_",
+                "PYTHON",
+                "UV_",
+                "_PYI",
+                "PYINSTALLER",
+                "DYLD_",
+                "LD_",
+            )
         )
     }
     env["TERM"] = "xterm-256color"
     with tempfile.TemporaryDirectory(prefix="obelisk-binary-smoke-") as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
+        env["XDG_CONFIG_HOME"] = str(root / "config-home")
         executable = root / "obelisk"
         shutil.copyfile(binary, executable)
         executable.chmod(0o755)
@@ -59,6 +70,7 @@ def smoke(binary: Path, version: str) -> None:
                 for text in ("usage: obelisk", "--help", "--version")
             ):
                 raise ValueError("Executable help is incomplete")
+        check_config([str(executable)], root, env)
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
         process = None

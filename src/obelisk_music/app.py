@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import os
+from pathlib import Path
 from typing import ClassVar
 
 import httpx
@@ -12,12 +12,14 @@ from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.theme import Theme
 from textual.widgets import Input
 from textual.worker import Worker
 
 from . import __version__
 from .auth import AuthError
 from .browser import LibraryBrowser
+from .config import Settings, config_path, environment_settings
 from .library import SpotifyLibrary
 from .models import Device
 from .screens import DeviceScreen, HelpScreen
@@ -45,9 +47,29 @@ class ObeliskApp(App):
         ("question_mark", "help", "Help"),
     ]
 
-    def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        settings: Settings | None = None,
+        config_file: Path | None = None,
+        http: httpx.AsyncClient | None = None,
+    ) -> None:
+        self.settings = settings if settings is not None else environment_settings()
+        self.config_file = config_file if config_file is not None else config_path()
         super().__init__()
-        self.client_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
+        self.register_theme(
+            Theme(
+                name="midnight",
+                primary="#91b7ff",
+                accent="#91b7ff",
+                foreground="#dbe5f1",
+                background="#0c1118",
+                surface="#0c1118",
+                panel="#172231",
+            )
+        )
+        self.theme = self.settings.appearance.theme
+        self.client_id = self.settings.spotify.client_id
         self.redirect_uri = os.environ.get(
             "SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8765/callback"
         )
@@ -73,11 +95,15 @@ class ObeliskApp(App):
                 yield PlainText("◆ OBELISK MUSIC", id="brand")
                 yield PlainText("● OFFLINE", id="connection")
             yield PlainText(id="top-rule")
-            yield LibraryBrowser(id="workspace")
+            yield LibraryBrowser(
+                vim_keys=self.settings.interface.vim_keys, id="workspace"
+            )
             yield PlainText(id="bottom-rule")
             yield NowPlaying(id="content")
             with Horizontal(id="bottom-bar"):
-                yield FeedbackBar(id="status")
+                yield FeedbackBar(
+                    vim_keys=self.settings.interface.vim_keys, id="status"
+                )
                 yield PlainText(f"OBELISK / {__version__}", id="version")
 
     def on_mount(self) -> None:
@@ -85,8 +111,18 @@ class ObeliskApp(App):
         if self.client_id:
             self._start_session(interactive=False)
         else:
-            self.status("Set SPOTIFY_CLIENT_ID before login")
-        self.set_interval(8, self._poll)
+            self._missing_client_id()
+        self.set_interval(self.settings.spotify.refresh_interval, self._poll)
+
+    def _missing_client_id(self, *, command: bool = False) -> None:
+        self.status(
+            "Run obelisk config init, then config edit (or SPOTIFY_CLIENT_ID)",
+            persistent=True,
+            command=command,
+        )
+        self.screen_stack[0].query_one(LibraryBrowser).message(
+            f"Config: {self.config_file}"
+        )
 
     def on_resize(self, event: events.Resize) -> None:
         self._layout(event.size.width, event.size.height)
@@ -108,9 +144,11 @@ class ObeliskApp(App):
         await self.workers.wait_for_complete()
         await self.http.aclose()
 
-    def status(self, message: str, *, command: bool = False) -> None:
+    def status(
+        self, message: str, *, command: bool = False, persistent: bool = False
+    ) -> None:
         self.screen_stack[0].query_one("#status", FeedbackBar).show_message(
-            message, command=command
+            message, command=command, persistent=persistent
         )
 
     def _connection(self, state: str) -> None:
@@ -151,7 +189,7 @@ class ObeliskApp(App):
 
     def _start_session(self, *, interactive: bool) -> None:
         if not self.client_id:
-            self.status("Missing SPOTIFY_CLIENT_ID", command=True)
+            self._missing_client_id(command=True)
             return
         if self._active(self._session_worker) and (
             not interactive or self._session_worker.name == "login"
@@ -382,13 +420,22 @@ class ObeliskApp(App):
         self.screen_stack[0].query_one(LibraryBrowser).focus_pane("playlists")
 
     def action_help(self) -> None:
-        self.push_screen(HelpScreen())
+        self.push_screen(
+            HelpScreen(
+                vim_keys=self.settings.interface.vim_keys, config_file=self.config_file
+            )
+        )
 
     def action_devices(self) -> None:
         if not self.session.authorized:
             self.status("Press l to authorize Spotify", command=True)
             return
-        self.push_screen(DeviceScreen(self.target_device_id), self._device_selected)
+        self.push_screen(
+            DeviceScreen(
+                self.target_device_id, vim_keys=self.settings.interface.vim_keys
+            ),
+            self._device_selected,
+        )
 
     def on_device_screen_load(self, event: DeviceScreen.Load) -> None:
         if event.overlay.is_mounted and self.screen is event.overlay:
@@ -416,14 +463,9 @@ class ObeliskApp(App):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="obelisk", description="Keyboard-first Spotify Connect controller"
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
-    parser.parse_args()
-    ObeliskApp().run()
+    from .cli import main as cli_main
+
+    cli_main()
 
 
 if __name__ == "__main__":

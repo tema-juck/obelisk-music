@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import ClassVar
 
 from textual.app import ComposeResult
@@ -27,10 +28,13 @@ class DeviceScreen(ModalScreen[Device | None]):
             super().__init__()
             self.overlay = overlay
 
-    def __init__(self, target_device_id: str | None = None) -> None:
+    def __init__(
+        self, target_device_id: str | None = None, *, vim_keys: bool = True
+    ) -> None:
         super().__init__()
         self.devices: list[Device] = []
         self.target_device_id = target_device_id
+        self.vim_keys = vim_keys
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="overlay"):
@@ -38,7 +42,7 @@ class DeviceScreen(ModalScreen[Device | None]):
                 "DEVICES · Enter transfer · r refresh · Esc back",
                 classes="overlay-title",
             )
-            yield NavigationTable(id="devices")
+            yield NavigationTable(vim_keys=self.vim_keys, id="devices")
             yield PlainText("Loading devices…", id="device-message")
 
     def on_mount(self) -> None:
@@ -96,16 +100,47 @@ class HelpScreen(ModalScreen):
     BINDINGS: ClassVar[list[tuple[str, str, str]]] = [
         ("escape", "close", "Close"),
         ("q", "close", "Close"),
-        ("j", "down", "Down"),
-        ("k", "up", "Up"),
+        ("j", "vim_down", "Down"),
+        ("k", "vim_up", "Up"),
+        ("down", "down", "Down"),
+        ("up", "up", "Up"),
     ]
+
+    def __init__(
+        self, *, vim_keys: bool = True, config_file: Path | None = None
+    ) -> None:
+        super().__init__()
+        self.vim_keys = vim_keys
+        self.config_file = config_file
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in ("vim_down", "vim_up") and not self.vim_keys:
+            return False
+        return super().check_action(action, parameters)
+
+    def action_vim_down(self) -> None:
+        self.action_down()
+
+    def action_vim_up(self) -> None:
+        self.action_up()
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="overlay"):
             yield PlainText("KEYBOARD · Esc back", classes="overlay-title")
             with VerticalScroll(id="help-scroll"):
+                navigation = (
+                    "j / ↓       Next item\nk / ↑       Previous item"
+                    if self.vim_keys
+                    else "↓           Next item\n↑           Previous item"
+                )
                 yield PlainText(
-                    "j / ↓       Next item\nk / ↑       Previous item\nEnter       Open playlist / play track\nTab         Switch pane\nShift+Tab   Switch pane backward\nEscape      Back / close overlay\nSpace       Play / pause\nn / p       Next / previous track\nd           Spotify Connect devices\nl           Spotify login\nr           Refresh current view\n?           Keyboard shortcuts\nq           Quit\n\nEnter on “Load more…” fetches a page.\n/ is reserved for P2 search.\n♫ marks matching Spotify track URIs;\n▸ and the row highlight mark selection.",
+                    navigation
+                    + "\nEnter       Open playlist / play track\nTab         Switch pane\nShift+Tab   Switch pane backward\nEscape      Back / close overlay\nSpace       Play / pause\nn / p       Next / previous track\nd           Spotify Connect devices\nl           Spotify login\nr           Refresh current view\n?           Keyboard shortcuts\nq           Quit\n\nEnter on “Load more…” fetches a page.\n/ is reserved for P2 search.\n♫ marks matching Spotify track URIs;\n▸ and the row highlight mark selection."
+                    + (
+                        f"\n\nConfiguration:\n{self.config_file}\nobelisk config init / edit / validate"
+                        if self.config_file
+                        else ""
+                    ),
                     id="help-text",
                 )
 

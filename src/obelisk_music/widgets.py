@@ -20,26 +20,31 @@ class FeedbackBar(PlainText):
 
     HINT = "j/k Move · Enter Open/Play · d Devices · ? Help · q Quit"
 
-    def __init__(self, **kwargs) -> None:
-        super().__init__(self.HINT, **kwargs)
+    def __init__(self, *, vim_keys: bool = True, **kwargs) -> None:
+        self.hint = self.HINT if vim_keys else self.HINT.replace("j/k", "↑/↓")
+        super().__init__(self.hint, **kwargs)
         self._clear_timer: Timer | None = None
         self._command_feedback = False
 
-    def show_message(self, message: str, *, command: bool = False) -> None:
+    def show_message(
+        self, message: str, *, command: bool = False, persistent: bool = False
+    ) -> None:
         if self._command_feedback and not command:
             return
         if self._clear_timer is not None:
             self._clear_timer.stop()
         self._command_feedback = command
         self.update(message)
-        self._clear_timer = self.set_timer(8, self.clear_message)
+        self._clear_timer = (
+            None if persistent else self.set_timer(8, self.clear_message)
+        )
 
     def clear_message(self) -> None:
         if self._clear_timer is not None:
             self._clear_timer.stop()
         self._command_feedback = False
         self._clear_timer = None
-        self.update(self.HINT)
+        self.update(self.hint)
 
 
 class PlaybackProgress(PlainText):
