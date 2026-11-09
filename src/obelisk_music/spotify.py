@@ -1,42 +1,126 @@
-"""A minimal Spotify Connect Web API adapter."""
+"""Async Spotify Connect requests with session recovery and shared cooldown."""
+
 from __future__ import annotations
+
+import asyncio
+import math
+import time
+from email.utils import parsedate_to_datetime
+from typing import Any
+
 import httpx
+from pydantic import TypeAdapter, ValidationError
+
+from .auth import AuthError
+from .models import Device, Playback
+from .session import SpotifySession
 
 BASE = "https://api.spotify.com/v1"
 
 
 class SpotifyError(RuntimeError):
-    pass
+    def __init__(
+        self, message: str, *, status_code: int | None = None, retry_after: float = 0
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.retry_after = retry_after
 
 
 class SpotifyClient:
-    def __init__(self, token: str):
-        self.token = token
+    """The app owns and closes the HTTP client shared with its session."""
 
-    async def request(self, method: str, path: str, **kwargs: object) -> dict:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.request(
-                method, BASE + path,
-                headers={"Authorization": f"Bearer {self.token}"}, **kwargs,
-            )
-        if response.status_code == 204:
-            return {}
-        if response.status_code == 429:
-            raise SpotifyError("Spotify API rate limit (429); retry later")
-        if response.status_code == 401:
-            raise SpotifyError("Access token expired; log in again")
-        if response.status_code == 403:
-            raise SpotifyError("Spotify denied playback control (403)")
-        if response.is_error:
-            raise SpotifyError(f"Spotify API error {response.status_code}: {response.text[:160]}")
-        return response.json() if response.content else {}
+    def __init__(self, session: SpotifySession, http: httpx.AsyncClient) -> None:
+        self.session = session
+        self.http = http
+        self._request_lock = asyncio.Lock()
+        self._retry_at = 0.0
 
-    async def playback(self) -> dict:
-        return await self.request("GET", "/me/player")
+    @staticmethod
+    def _retry_after(value: str | None) -> float:
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            try:
+                seconds = parsedate_to_datetime(value).timestamp() - time.time()
+            except (TypeError, ValueError, OverflowError):
+                return 30
+        return max(0, seconds) if math.isfinite(seconds) else 30
 
-    async def devices(self) -> list[dict]:
+    async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        # Serialize sends so a 429 applies before another queued request is sent.
+        async with self._request_lock:
+            remaining = self._retry_at - time.monotonic()
+            if remaining > 0:
+                raise SpotifyError(
+                    f"Spotify rate limited; retry in {math.ceil(remaining)}s",
+                    status_code=429,
+                    retry_after=remaining,
+                )
+            token, generation = await self.session.access_token()
+            for attempt in range(2):
+                response = await self.http.request(
+                    method,
+                    BASE + path,
+                    headers={"Authorization": f"Bearer {token}"},
+                    **kwargs,
+                )
+                if response.status_code != 401:
+                    break
+                self.session.reject(generation)
+                if attempt:
+                    raise AuthError(
+                        "Spotify rejected the refreshed session; press L to authorize"
+                    )
+                token, generation = await self.session.access_token(
+                    rejected_generation=generation
+                )
+            if response.status_code == 429:
+                delay = self._retry_after(response.headers.get("Retry-After"))
+                self._retry_at = time.monotonic() + delay
+                raise SpotifyError(
+                    f"Spotify rate limited; retry in {math.ceil(delay)}s",
+                    status_code=429,
+                    retry_after=delay,
+                )
+            if response.status_code == 403:
+                raise SpotifyError(
+                    "Spotify denied the request (403); check app access and playback restrictions",
+                    status_code=403,
+                )
+            if response.status_code == 404:
+                raise SpotifyError(
+                    "No active Spotify device (404); open Spotify and start playback",
+                    status_code=404,
+                )
+            if response.is_error:
+                raise SpotifyError(
+                    f"Spotify API error ({response.status_code})",
+                    status_code=response.status_code,
+                )
+            if response.status_code == 204 or not response.content:
+                return {}
+            try:
+                payload = response.json()
+            except ValueError:
+                raise SpotifyError("Spotify returned invalid JSON") from None
+            if not isinstance(payload, dict):
+                raise SpotifyError("Spotify returned an invalid response")
+            return payload
+
+    async def playback(self) -> Playback:
+        payload = await self.request("GET", "/me/player")
+        try:
+            return Playback.model_validate(payload)
+        except ValidationError:
+            raise SpotifyError("Spotify returned invalid playback data") from None
+
+    async def devices(self) -> list[Device]:
         result = await self.request("GET", "/me/player/devices")
-        return result.get("devices", [])
+        try:
+            return TypeAdapter(list[Device]).validate_python(result.get("devices", []))
+        except ValidationError:
+            raise SpotifyError("Spotify returned invalid device data") from None
 
     async def pause(self) -> None:
         await self.request("PUT", "/me/player/pause")

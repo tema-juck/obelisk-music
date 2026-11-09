@@ -11,7 +11,8 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
-from .auth import interactive_login, refresh_access_token
+from .auth import AuthError
+from .session import SpotifySession
 from .spotify import SpotifyClient, SpotifyError
 
 
@@ -37,6 +38,7 @@ class ObeliskApp(App):
         )
         self.spotify: SpotifyClient | None = None
         self.http = httpx.AsyncClient(timeout=15)
+        self.session = SpotifySession(self.client_id, self.http)
         self.is_playing = False
         self.busy = False
 
@@ -121,9 +123,8 @@ class ObeliskApp(App):
 
     async def restore_session(self) -> None:
         try:
-            token = await refresh_access_token(self.client_id, self.http)
-            if token:
-                self.spotify = SpotifyClient(token.access_token.get_secret_value())
+            if await self.session.restore():
+                self.spotify = SpotifyClient(self.session, self.http)
                 await self.refresh_player()
             else:
                 self.status("Press L to authorize Spotify")
@@ -135,16 +136,14 @@ class ObeliskApp(App):
             return
         try:
             playback = await self.spotify.playback()
-            self.is_playing = bool(playback.get("is_playing"))
-            item = playback.get("item") or {}
-            track = item.get("name") or "Nothing playing"
-            artists = ", ".join(
-                artist.get("name", "") for artist in item.get("artists", [])
-            )
-            album = (item.get("album") or {}).get("name") or ""
-            device = (playback.get("device") or {}).get("name") or "No active device"
-            duration = item.get("duration_ms") or 0
-            position = min(playback.get("progress_ms") or 0, duration)
+            self.is_playing = playback.is_playing
+            item = playback.item
+            track = item.name if item else "Nothing playing"
+            artists = ", ".join(artist.name for artist in item.artists) if item else ""
+            album = item.album.name if item and item.album else ""
+            device = playback.device.name if playback.device else "No active device"
+            duration = item.duration_ms if item else 0
+            position = min(playback.progress_ms or 0, duration)
             fraction = position / duration if duration else 0
             segments = 40
             filled = min(segments - 1, int(fraction * (segments - 1)))
@@ -165,7 +164,7 @@ class ObeliskApp(App):
             )
             self.query_one("#connection", Static).update("● CONNECTED")
             self.status("Connected · playback via Spotify Desktop")
-        except (SpotifyError, httpx.HTTPError) as exc:
+        except (AuthError, SpotifyError, httpx.HTTPError) as exc:
             self.status(str(exc))
 
     async def action_login(self) -> None:
@@ -177,10 +176,8 @@ class ObeliskApp(App):
         self.busy = True
         self.status("Opening Spotify login in browser...")
         try:
-            token = await interactive_login(
-                self.client_id, self.redirect_uri, self.http
-            )
-            self.spotify = SpotifyClient(token.access_token.get_secret_value())
+            await self.session.login(self.redirect_uri)
+            self.spotify = SpotifyClient(self.session, self.http)
         except (
             httpx.HTTPError,
             OSError,
@@ -201,7 +198,7 @@ class ObeliskApp(App):
         self.busy = True
         try:
             await getattr(self.spotify, command)()
-        except (SpotifyError, httpx.HTTPError) as exc:
+        except (AuthError, SpotifyError, httpx.HTTPError) as exc:
             self.status(str(exc))
         finally:
             self.busy = False
