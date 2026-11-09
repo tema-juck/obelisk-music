@@ -23,6 +23,12 @@ TAG = "v0.2.0-alpha.1"
 COMMIT = "a" * 40
 
 
+@pytest.fixture(autouse=True)
+def synthetic_package_version(monkeypatch):
+    # Boundary fixtures must not depend on the next application release number.
+    monkeypatch.setattr(release, "project_version", lambda: "0.2.0a1")
+
+
 def binary(target):
     if target.startswith("darwin"):
         cpu = 0x100000C if target.endswith("arm64") else 0x1000007
@@ -75,6 +81,8 @@ def make_archive(
     ("tag", "version", "prerelease"),
     [
         (TAG, "0.2.0a1", True),
+        ("v0.2.0-alpha.2", "0.2.0a2", True),
+        ("v0.2.0-alpha.3", "0.2.0a3", True),
         ("v1.0.0-beta.2", "1.0.0b2", True),
         ("v1.0.0-rc.3", "1.0.0rc3", True),
         ("v1.0.0", "1.0.0", False),
