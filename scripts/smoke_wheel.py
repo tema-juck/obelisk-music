@@ -106,9 +106,7 @@ def main() -> None:
         asyncio.run(check_installed())
         return
     if args.wheel is None:
-        parser.error(
-            "provide exactly one wheel, for example dist/obelisk_music-0.2.0-py3-none-any.whl"
-        )
+        parser.error("provide exactly one freshly built wheel from dist/")
     wheel = args.wheel.resolve(strict=True)
     check_wheel(wheel)
     uv = shutil.which("uv")

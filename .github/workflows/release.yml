@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UV_FROZEN: "true"
+  BUILD_PYTHON: "3.13.18"
+  RELEASE_TAG: ${{ github.ref_name }}
+
+jobs:
+  quality:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - name: Install locked dependencies and release tools
+        run: uv sync --frozen --dev --group release
+      - name: Verify tag against package metadata
+        run: uv run python scripts/release.py verify-tag --tag "$RELEASE_TAG"
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -q
+      - run: uv build --no-build-isolation
+      - run: uv run python scripts/smoke_wheel.py dist/*.whl
+
+  native:
+    needs: quality
+    name: Native ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-amd64
+          - runner: ubuntu-22.04
+            target: linux-amd64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - run: uv sync --frozen --dev --group release
+      - name: Run native regression tests
+        run: uv run pytest -q
+      - name: Build and smoke-test the native executable
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: uv run python scripts/build_binary.py --tag "$RELEASE_TAG" --target "$BUILD_TARGET" --output "$RUNNER_TEMP/obelisk-release"
+      - name: Upload only the verified archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-${{ matrix.target }}
+          path: ${{ runner.temp }}/obelisk-release/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  publish:
+    needs: [quality, native]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+          github-token: ""
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: native-*
+          path: ${{ runner.temp }}/obelisk-artifacts
+          merge-multiple: true
+      - name: Validate all archives, upload a draft, verify assets, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_HOST: github.com
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: uv run --no-project python scripts/release.py publish --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --repository "$RELEASE_REPOSITORY" --directory "$RUNNER_TEMP/obelisk-artifacts"
