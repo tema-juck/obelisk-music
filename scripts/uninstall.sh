@@ -7,7 +7,10 @@ die() { printf 'obelisk uninstaller: %s\n' "$*" >&2; exit 1; }
 bin_dir=
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --bin-dir) [ "$#" -ge 2 ] || die '--bin-dir needs a value'; bin_dir=$2; shift 2 ;;
+        --bin-dir)
+            [ "$#" -ge 2 ] || die '--bin-dir needs a value'
+            [ -n "$2" ] || die '--bin-dir needs a nonempty value'
+            bin_dir=$2; shift 2 ;;
         --help|-h) printf '%s\n' 'Usage: sh uninstall.sh [--bin-dir DIRECTORY]'; exit 0 ;;
         *) die "Unknown option: $1" ;;
     esac

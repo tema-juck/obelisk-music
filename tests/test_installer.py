@@ -426,6 +426,16 @@ def test_empty_uninstall(installer):
     assert installer.run(uninstall=True).returncode == 0
 
 
+@pytest.mark.parametrize("option", ["--version", "--bin-dir"])
+def test_empty_arguments_never_fall_back_to_defaults(installer, option):
+    assert installer.run().returncode == 0
+    before = installer.binary.read_bytes()
+    assert installer.run(option, "").returncode != 0
+    if option == "--bin-dir":
+        assert installer.run(option, "", uninstall=True).returncode != 0
+    assert installer.binary.read_bytes() == before
+
+
 @pytest.mark.parametrize("directory", ["/", "/usr", "/etc", "/usr/local/bin"])
 def test_system_directory_protection(installer, directory):
     result = installer.run("--bin-dir", directory)

@@ -18,6 +18,7 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --version|--bin-dir)
             [ "$#" -ge 2 ] || die "$1 needs a value"
+            [ -n "$2" ] || die "$1 needs a nonempty value"
             case "$1" in --version) version=$2 ;; --bin-dir) bin_dir=$2 ;; esac
             shift 2 ;;
         --prerelease) prerelease=1; shift ;;
