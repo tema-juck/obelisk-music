@@ -117,7 +117,7 @@ def test_shared_cooldown_blocks_queued_commands_and_polling(monkeypatch):
 
 @pytest.mark.parametrize(
     ("header", "expected"),
-    [("5", 5), ("0", 0), ("-2", 0), (None, 30), ("bad", 30), ("NaN", 30), ("inf", 30)],
+    [("5", 5), ("0", 0), ("-2", 30), (None, 30), ("bad", 30), ("NaN", 30), ("inf", 30)],
 )
 def test_retry_after_validation(header, expected):
     assert SpotifyClient._retry_after(header) == expected
@@ -204,5 +204,34 @@ def test_network_failure_does_not_retry_playback_mutation():
             with pytest.raises(httpx.ReadTimeout):
                 await api(http).next()
         assert len(calls) == 1
+
+    asyncio.run(run())
+
+
+def test_token_endpoint_429_shares_cooldown_with_api_and_token_retries(monkeypatch):
+    async def run():
+        monkeypatch.setattr(
+            auth.keyring, "get_password", Mock(return_value="test-refresh")
+        )
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            assert request.url == auth.TOKEN_URL
+            return httpx.Response(429, headers={"Retry-After": "120"})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            client = api(http)
+            client.session._refresh_at = 0
+            for operation in [
+                client.playback,
+                client.next,
+                client.session.access_token,
+            ]:
+                with pytest.raises(SpotifyError) as exc:
+                    await operation()
+                assert exc.value.status_code == 429
+            assert len(calls) == 1
+            assert client.session.authorized
 
     asyncio.run(run())

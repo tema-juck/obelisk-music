@@ -12,7 +12,6 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import httpx
 import keyring
 from keyring.errors import KeyringError
-from pydantic import ValidationError
 
 from .models import Token
 
@@ -161,25 +160,42 @@ async def _authorization_code(
 
 async def _token_request(http: httpx.AsyncClient, data: dict[str, str]) -> Token:
     response = await http.post(TOKEN_URL, data=data)
-    if response.is_error:
+    if response.status_code in (400, 401):
         raise AuthError(
             f"Spotify token request failed ({response.status_code}); press L to authorize"
         )
+    response.raise_for_status()
     try:
         return Token.model_validate(response.json())
-    except (ValueError, ValidationError):
+    except ValueError:
         raise AuthError("Spotify returned an invalid token response") from None
 
 
 async def _save_refresh_token(client_id: str, token: Token) -> None:
     if token.refresh_token is not None:
         try:
-            await asyncio.to_thread(
-                keyring.set_password,
-                SERVICE,
-                client_id,
-                token.refresh_token.get_secret_value(),
+            write = asyncio.create_task(
+                asyncio.to_thread(
+                    keyring.set_password,
+                    SERVICE,
+                    client_id,
+                    token.refresh_token.get_secret_value(),
+                )
             )
+            cancelled = False
+            # Finish credential rotation before the session lock is released.
+            while True:
+                try:
+                    await asyncio.shield(write)
+                    break
+                except asyncio.CancelledError:
+                    cancelled = True
+                except KeyringError:
+                    if cancelled:
+                        raise asyncio.CancelledError from None
+                    raise
+            if cancelled:
+                raise asyncio.CancelledError
         except KeyringError:
             raise AuthError(
                 "Could not save credentials; unlock or configure your OS keychain"

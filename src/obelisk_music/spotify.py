@@ -35,28 +35,44 @@ class SpotifyClient:
         self.http = http
         self._request_lock = asyncio.Lock()
         self._retry_at = 0.0
+        # The shared HTTP client also sends OAuth token requests.
+        http.event_hooks["request"].append(self._check_cooldown)
+        http.event_hooks["response"].append(self._record_cooldown)
+
+    async def _check_cooldown(self, _request: httpx.Request | None = None) -> None:
+        remaining = self._retry_at - time.monotonic()
+        if remaining > 0:
+            raise SpotifyError(
+                f"Spotify rate limited; retry in {math.ceil(remaining)}s",
+                status_code=429,
+                retry_after=remaining,
+            )
+
+    async def _record_cooldown(self, response: httpx.Response) -> None:
+        if response.status_code == 429:
+            delay = self._retry_after(response.headers.get("Retry-After"))
+            self._retry_at = max(self._retry_at, time.monotonic() + delay)
+            raise SpotifyError(
+                f"Spotify rate limited; retry in {math.ceil(delay)}s",
+                status_code=429,
+                retry_after=delay,
+            )
 
     @staticmethod
     def _retry_after(value: str | None) -> float:
         try:
             seconds = float(value)
+            return seconds if math.isfinite(seconds) and seconds >= 0 else 30
         except (TypeError, ValueError):
             try:
-                seconds = parsedate_to_datetime(value).timestamp() - time.time()
+                return max(0, parsedate_to_datetime(value).timestamp() - time.time())
             except (TypeError, ValueError, OverflowError):
                 return 30
-        return max(0, seconds) if math.isfinite(seconds) else 30
 
     async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         # Serialize sends so a 429 applies before another queued request is sent.
         async with self._request_lock:
-            remaining = self._retry_at - time.monotonic()
-            if remaining > 0:
-                raise SpotifyError(
-                    f"Spotify rate limited; retry in {math.ceil(remaining)}s",
-                    status_code=429,
-                    retry_after=remaining,
-                )
+            await self._check_cooldown()
             token, generation = await self.session.access_token()
             for attempt in range(2):
                 response = await self.http.request(
@@ -67,21 +83,14 @@ class SpotifyClient:
                 )
                 if response.status_code != 401:
                     break
-                self.session.reject(generation)
                 if attempt:
-                    raise AuthError(
+                    error = AuthError(
                         "Spotify rejected the refreshed session; press L to authorize"
                     )
+                    self.session.invalidate(generation, error)
+                    raise error
                 token, generation = await self.session.access_token(
                     rejected_generation=generation
-                )
-            if response.status_code == 429:
-                delay = self._retry_after(response.headers.get("Retry-After"))
-                self._retry_at = time.monotonic() + delay
-                raise SpotifyError(
-                    f"Spotify rate limited; retry in {math.ceil(delay)}s",
-                    status_code=429,
-                    retry_after=delay,
                 )
             if response.status_code == 403:
                 raise SpotifyError(
@@ -93,7 +102,7 @@ class SpotifyClient:
                     "No active Spotify device (404); open Spotify and start playback",
                     status_code=404,
                 )
-            if response.is_error:
+            if not response.is_success:
                 raise SpotifyError(
                     f"Spotify API error ({response.status_code})",
                     status_code=response.status_code,

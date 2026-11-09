@@ -104,3 +104,55 @@ def test_login_installs_expiring_token(monkeypatch):
             assert await manager.restore()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("status", [400, 500])
+def test_invalid_grant_stops_polling_but_transient_failure_can_retry(
+    monkeypatch, status
+):
+    async def run():
+        monkeypatch.setattr(
+            auth.keyring, "get_password", Mock(return_value="test-refresh")
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda r: httpx.Response(status))
+        ) as http:
+            manager = SpotifySession("test-client", http)
+            manager._install(Token(access_token="test-access", expires_in=3600))
+            expected = AuthError if status == 400 else httpx.HTTPStatusError
+            with pytest.raises(expected):
+                await manager.access_token(rejected_generation=manager.generation)
+            assert manager.authorized is (status == 500)
+
+    asyncio.run(run())
+
+
+def test_concurrent_refresh_failure_is_shared_until_explicit_restore(monkeypatch):
+    async def run():
+        monkeypatch.setattr(
+            auth.keyring, "get_password", Mock(return_value="test-refresh")
+        )
+        calls = []
+
+        async def handler(request):
+            calls.append(request)
+            await asyncio.sleep(0)
+            if len(calls) == 1:
+                return httpx.Response(400)
+            return httpx.Response(
+                200, json={"access_token": "new-test-access", "expires_in": 3600}
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            manager = SpotifySession("test-client", http)
+            results = await asyncio.gather(
+                *(manager.access_token() for _ in range(5)), return_exceptions=True
+            )
+            assert all(isinstance(exc, AuthError) for exc in results)
+            assert len(calls) == 1
+            assert not manager.authorized
+            assert await manager.restore()
+            assert await manager.access_token() == ("new-test-access", 2)
+            assert len(calls) == 2
+
+    asyncio.run(run())

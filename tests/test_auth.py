@@ -344,3 +344,40 @@ def test_redirect_must_be_explicit_loopback(monkeypatch, uri):
             )
 
     asyncio.run(run())
+
+
+def test_cancelling_rotation_waits_for_keychain_write(monkeypatch):
+    import threading
+
+    async def run():
+        started = asyncio.Event()
+        release = threading.Event()
+        loop = asyncio.get_running_loop()
+
+        def save(*args):
+            loop.call_soon_threadsafe(started.set)
+            assert release.wait(2)
+
+        monkeypatch.setattr(auth.keyring, "set_password", save)
+        task = asyncio.create_task(
+            auth._save_refresh_token(
+                "test-client",
+                auth.Token(
+                    access_token="test-access",
+                    refresh_token="test-refresh",
+                    expires_in=3600,
+                ),
+            )
+        )
+        await started.wait()
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(run())
