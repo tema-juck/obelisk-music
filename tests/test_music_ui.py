@@ -468,3 +468,115 @@ def test_theme_stylesheet_uses_only_semantic_colors():
     import re
 
     assert not re.search(r"#[0-9a-fA-F]{6}\b", stylesheet)
+
+
+def test_search_waits_for_an_inflight_login():
+    async def run():
+        app = make_app(CatalogStub())
+        async with app.run_test() as pilot:
+            app._session_worker = app.run_worker(
+                asyncio.Event().wait(), group="session"
+            )
+            await pilot.press("slash")
+            assert not isinstance(app.screen, CatalogScreen)
+            assert "Login in progress" in text(app.screen, "#status")
+        assert app.http.is_closed
+
+    asyncio.run(run())
+
+
+def test_album_pagination_preserves_null_slots_and_playback_offset(monkeypatch):
+    async def run():
+        stub = CatalogStub()
+        app = make_app(stub)
+
+        async def tracks(identifier, offset):
+            entries = (
+                [None] + [Track.model_validate(song())] * 49
+                if offset == 0
+                else [Track.model_validate(song())]
+            )
+            return Page[Track | None](offset=offset, limit=50, total=51, items=entries)
+
+        monkeypatch.setattr(app.spotify, "album_tracks", tracks)
+        async with app.run_test(size=(40, 12)) as pilot:
+            app._open_catalog(Album(id="album", name="Album"))
+            await pilot.pause()
+            await settle(app)
+            table = app.screen.query_one(CatalogTable)
+            assert app.screen.entries[0] == (0, None)
+            await pilot.press("enter")
+            assert not any(r.method == "PUT" for r in stub.calls)
+            table.move_cursor(row=50)
+            await pilot.press("enter")
+            await settle(app)
+            assert len(app.screen.entries) == 51 and not app.screen.more
+            assert app.screen.entries[-1][0] == 50
+            await pilot.press("enter")
+            await settle(app)
+            command = next(r for r in stub.calls if r.method == "PUT")
+            assert json.loads(command.content) == {
+                "context_uri": "spotify:album:album",
+                "offset": {"position": 50},
+            }
+
+    asyncio.run(run())
+
+
+def test_quit_remains_responsive_during_pending_search(monkeypatch):
+    async def run():
+        app = make_app(CatalogStub())
+        started, cancelled = asyncio.Event(), asyncio.Event()
+
+        async def delayed(*args):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        monkeypatch.setattr(app.spotify, "search", delayed)
+        async with app.run_test() as pilot:
+            await pilot.press("slash")
+            app.screen.query_one(Input).value = "pending"
+            await asyncio.wait_for(started.wait(), 1)
+            await pilot.press("down", "q")
+            async with asyncio.timeout(2):
+                while app.is_running:
+                    await asyncio.sleep(0.01)
+        assert cancelled.is_set() and app.http.is_closed
+
+    asyncio.run(run())
+
+
+def test_closing_help_does_not_automatically_retry_a_restricted_view():
+    async def run():
+        stub = CatalogStub()
+        stub.failure = 403
+        app = make_app(stub)
+        async with app.run_test() as pilot:
+            await search(app, pilot)
+            await pilot.press("down", "question_mark", "escape")
+            await settle(app)
+            assert len(stub.searches()) == 1
+            assert "restricted" in text(app.screen, "#catalog-message")
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "key,path", [("space", "play"), ("n", "next"), ("p", "previous")]
+)
+def test_catalog_playback_shortcuts_use_the_existing_command_gate(key, path):
+    async def run():
+        stub = CatalogStub()
+        app = make_app(stub)
+        async with app.run_test() as pilot:
+            await search(app, pilot)
+            await pilot.press("down", key)
+            await settle(app)
+            commands = [request for request in stub.calls if request.method != "GET"]
+            assert len(commands) == 1
+            assert commands[0].url.path == "/v1/me/player/" + path
+
+    asyncio.run(run())

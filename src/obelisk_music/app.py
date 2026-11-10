@@ -167,7 +167,10 @@ class ObeliskApp(App):
 
     async def on_unmount(self) -> None:
         self.workers.cancel_all()
-        await self.workers.wait_for_complete()
+        # Worker.wait raises on cancellation; shutdown must still await every worker.
+        await asyncio.gather(
+            *(worker.wait() for worker in self.workers), return_exceptions=True
+        )
         await self.http.aclose()
 
     def status(
@@ -478,13 +481,16 @@ class ObeliskApp(App):
         self._open_catalog(None)
 
     def _open_catalog(self, resource: Album | Artist | None) -> None:
+        if self._active(self._session_worker):
+            self.status("Login in progress", command=True)
+            return
         if not self.session.authorized:
             self.status("Press l to authorize Spotify before searching", command=True)
             return
         screen = CatalogScreen(resource, vim_keys=self.settings.interface.vim_keys)
         screen.playing_uri = self.screen_stack[0].query_one(NowPlaying).playing_uri
         if isinstance(self.screen, CatalogScreen):
-            self.screen.invalidate()
+            self.screen.suspend_reads()
         self.push_screen(screen)
 
     def on_library_browser_inspect(self, event: LibraryBrowser.Inspect) -> None:
@@ -496,14 +502,15 @@ class ObeliskApp(App):
         if self.screen_stack:
             self.screen_stack[0].query_one(FeedbackBar).set_context(event.pane)
 
-    def on_catalog_screen_control(self, event: CatalogScreen.Control) -> None:
-        if event.action in {
+    async def on_catalog_screen_control(self, event: CatalogScreen.Control) -> None:
+        if event.action == "quit":
+            await self.action_quit()
+        elif event.action in {
             "toggle",
             "next_track",
             "previous_track",
             "devices",
             "help",
-            "quit",
             "search",
         }:
             getattr(self, "action_" + event.action)()

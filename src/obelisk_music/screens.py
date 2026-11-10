@@ -217,6 +217,7 @@ class CatalogScreen(ModalScreen):
         self.playing_uri: str | None = None
         self.read_worker: Worker | None = None
         self.debounce: Timer | None = None
+        self.resume_read = False
 
     @property
     def key(self) -> tuple[str, ...]:
@@ -275,14 +276,19 @@ class CatalogScreen(ModalScreen):
         self.invalidate()
 
     def on_screen_resume(self) -> None:
-        if not self.is_mounted:
+        if not self.is_mounted or not self.resume_read:
             return
+        self.resume_read = False
         if self.entries:
             self.message(f"{len(self.entries)} results · Enter open/play · r refresh")
-        elif (self.mode != "search" or self.search_query) and (
-            self.read_worker is None or self.read_worker.is_finished
-        ):
+        else:
             self.request()
+
+    def suspend_reads(self) -> None:
+        self.resume_read = self.debounce is not None or (
+            self.read_worker is not None and not self.read_worker.is_finished
+        )
+        self.invalidate()
 
     def request(self, *, reset: bool = False) -> None:
         self.invalidate()
@@ -390,7 +396,7 @@ class CatalogScreen(ModalScreen):
     def draw_metadata(self) -> None:
         if self.mode == "search":
             self.query_one("#catalog-title", PlainText).update(
-                f"SEARCH SPOTIFY · {self.category.upper()} ⌕"
+                f"SEARCH SPOTIFY · {self.category.upper()}"
             )
             text = "F1 Tracks · F2 Albums · F3 Artists"
         elif isinstance(self.resource, Album):
