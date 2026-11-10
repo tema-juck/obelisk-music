@@ -18,6 +18,9 @@ in `37d3de6`. The latest published baseline remains `v0.2.0-alpha.4`.
 
 ### Improved
 
+- F1 search playback starts the exact selected URI in its album context, avoiding
+  silent no-ops from URI-list playback on affected Spotify clients. Album/artist
+  track views retain their original item offsets; rejected commands never fall back.
 - Responsive browsing and overlays at 120×35, 80×24, 60×20, and 40×12.
 - Superseded read cancellation and protection against late UI/cache responses.
 - Graceful worker shutdown, asynchronous catalog Quit, and search/login coordination.

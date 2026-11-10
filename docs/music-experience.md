@@ -28,7 +28,14 @@ continue independently. Changing selection never starts playback.
 
 Album tracks play using Spotify album context and the original offset, including
 positions occupied by null/unavailable items. Rejected context playback never
-falls back to unrelated tracks. Search playback sends only the selected track URI.
+falls back to unrelated tracks. Search playback uses the result's album context
+with the exact selected track URI as its offset. It does not use a search row's
+position or disc-relative track number as an album position. Missing album details
+show guidance to open the album through F2, without guessing a target.
+This avoids a [reported Spotify URI-list playback regression](https://community.spotify.com/forum/en/discussion/7552922/web-api-me-player-play-returns-204-but-does-not-start-playback-and-clears-current-playback-desktop)
+where a 204 response can start no track. The parameters are part of the
+[supported playback API](https://developer.spotify.com/documentation/web-api/reference/start-a-users-playback).
+Spotify may continue through the album after the selected track finishes.
 Existing Space, n/p, d, ?, and q shortcuts work from catalog results. Help/device
 dialogs restore the previous row and focus. ♫ marks matching playback URIs; row
 highlighting marks selection. Duplicate URIs can share the playing indicator.

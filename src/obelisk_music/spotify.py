@@ -117,6 +117,11 @@ class SpotifyClient:
                     else "Spotify resource is unavailable or deleted (404)",
                     status_code=404,
                 )
+            if response.status_code == 400 and path == "/me/player/play":
+                raise SpotifyError(
+                    "Spotify rejected playback (400); refresh results and choose a playable track",
+                    status_code=400,
+                )
             if not response.is_success:
                 raise SpotifyError(
                     f"Spotify API error ({response.status_code})",
@@ -260,16 +265,21 @@ class SpotifyClient:
             f"/artists/{quote(identifier, safe='')}/albums", Album, offset
         )
 
-    async def play_track(self, uri: str, device_id: str | None = None) -> None:
+    async def play_track(
+        self, uri: str, album_id: str, device_id: str | None = None
+    ) -> None:
+        """Use exact album/track identity; URI-list commands can silently no-op."""
         if not uri.startswith("spotify:track:") or not uri.removeprefix(
             "spotify:track:"
         ):
             raise ValueError("A Spotify track URI is required")
+        if not album_id:
+            raise ValueError("The track's album ID is required")
         await self.request(
             "PUT",
             "/me/player/play",
             params={"device_id": device_id} if device_id else None,
-            json={"uris": [uri]},
+            json={"context_uri": f"spotify:album:{album_id}", "offset": {"uri": uri}},
         )
 
     async def play_album(

@@ -521,8 +521,15 @@ class ObeliskApp(App):
         elif isinstance(event.resource, Track) and event.resource.playable:
             if event.album and event.album.id:
                 self._start_command("play_album", event.album.id, event.position)
+            elif event.resource.album and event.resource.album.id:
+                self._start_command(
+                    "play_track", event.resource.uri, event.resource.album.id
+                )
             else:
-                self._start_command("play_track", event.resource.uri)
+                self.status(
+                    "Album details unavailable; press F2 to find and open its album",
+                    command=True,
+                )
 
     def on_catalog_screen_load(self, event: CatalogScreen.Load) -> None:
         overlay = event.overlay

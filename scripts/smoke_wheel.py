@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import shutil
 import subprocess
@@ -54,6 +55,7 @@ async def check_installed() -> None:
     from obelisk_music.config import config_path, load_settings
     from obelisk_music.models import Token
     from obelisk_music.screens import CatalogScreen
+    from obelisk_music.widgets import NowPlaying
 
     assert (
         Path(obelisk_music.__file__)
@@ -95,8 +97,32 @@ async def check_installed() -> None:
         ),
     ):
         path = config_path()
+        track = {
+            "name": "[red]Smoke track[/red]",
+            "uri": "spotify:track:smoke",
+            "album": {"id": "smoke-album"},
+        }
+        playing = False
 
         def catalog(request):
+            nonlocal playing
+            if request.method == "PUT":
+                assert request.url.path == "/v1/me/player/play"
+                assert json.loads(request.content) == {
+                    "context_uri": "spotify:album:smoke-album",
+                    "offset": {"uri": track["uri"]},
+                }
+                playing = True
+                return httpx.Response(204)
+            if request.url.path == "/v1/me/player":
+                return httpx.Response(
+                    200,
+                    json={
+                        "item": track if playing else None,
+                        "is_playing": playing,
+                        "device": {"name": "Mock device"},
+                    },
+                )
             assert request.url.path == "/v1/search"
             return httpx.Response(
                 200,
@@ -105,12 +131,7 @@ async def check_installed() -> None:
                         "offset": 0,
                         "limit": 10,
                         "total": 1,
-                        "items": [
-                            {
-                                "name": "[red]Smoke track[/red]",
-                                "uri": "spotify:track:smoke",
-                            }
-                        ],
+                        "items": [track],
                     }
                 },
             )
@@ -134,6 +155,13 @@ async def check_installed() -> None:
             await app.workers.wait_for_complete()
             assert app.screen.query_one(CatalogTable).row_count == 1
             assert app.screen.entries[0][1].name == "[red]Smoke track[/red]"
+            await pilot.press("down", "enter")
+            await app.workers.wait_for_complete()
+            assert (
+                playing
+                and app.screen_stack[0].query_one(NowPlaying).playing_uri
+                == track["uri"]
+            )
             await pilot.press("escape")
             await pilot.press("q")
             assert not app.is_running

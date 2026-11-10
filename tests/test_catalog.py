@@ -194,7 +194,14 @@ def test_cache_clear_rejects_inflight_catalog_and_metadata():
 @pytest.mark.parametrize(
     "command,args,body",
     [
-        ("play_track", ("spotify:track:one",), {"uris": ["spotify:track:one"]}),
+        (
+            "play_track",
+            ("spotify:track:one", "album"),
+            {
+                "context_uri": "spotify:album:album",
+                "offset": {"uri": "spotify:track:one"},
+            },
+        ),
         (
             "play_album",
             ("one", 51),

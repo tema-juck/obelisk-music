@@ -268,7 +268,10 @@ def test_enter_plays_search_track_or_album_context_once(album):
             expected = (
                 {"context_uri": "spotify:album:album", "offset": {"position": 1}}
                 if album
-                else {"uris": ["spotify:track:one"]}
+                else {
+                    "context_uri": "spotify:album:album",
+                    "offset": {"uri": "spotify:track:one"},
+                }
             )
             assert json.loads(commands[0].content) == expected
             assert app.screen.mode == ("album" if album else "search")
