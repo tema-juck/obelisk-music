@@ -142,7 +142,8 @@ obelisk
 Set `spotify.client_id` in `~/.config/obelisk/config.toml`, or under
 `$XDG_CONFIG_HOME/obelisk/config.toml` when set. Use `obelisk config path` to print
 the effective location. The file also supports playback polling interval, the
-`midnight` palette, and enabling/disabling Vim navigation. See
+`midnight` palette, and enabling/disabling Vim navigation. Development builds also
+support the `mono` palette. See
 [Configuration](docs/configuration.md) for the schema, validation, permissions,
 editor selection, and environment overrides.
 
@@ -215,8 +216,8 @@ permissions to an existing grant.
 | --- | --- |
 | J / ↓ | Next item |
 | K / ↑ | Previous item |
-| Enter | Open playlist / play selected track |
-| Tab / Shift+Tab | Switch browsing pane |
+| Enter | Open playlist, album, or artist / play selected track |
+| Tab / Shift+Tab | Switch browsing pane / search input and results |
 | Escape | Return to playlists / close overlay |
 | L | Authorize Spotify |
 | Space | Play/pause |
@@ -226,6 +227,9 @@ permissions to an existing grant.
 | R | Refresh playback and the current browsing view |
 | ? | Keyboard shortcuts |
 | Q | Quit |
+| / | Search Spotify (P2 development builds) |
+| F1 / F2 / F3 | Search tracks / albums / artists |
+| a / A | Selected track's album / first artist |
 
 Enter on **Load more…** fetches the next page. Opening a cached playlist makes no
 additional library requests. **R** reloads the focused view from its first page;
@@ -244,7 +248,10 @@ Transfers preserve playback state. The target changes only after a successful
 transfer, and failed commands never silently switch to another device. Dialogs
 and focused text inputs do not trigger application playback shortcuts.
 
-Search is reserved for P2; **/** has no search action in P1.
+P2 development builds add **/** search, album/artist browsing, a locally updating
+Now Playing clock, and a monochrome theme. Published alpha.4 binaries retain the
+P1 behavior until a new release is approved. See [Music experience](docs/music-experience.md)
+for keyboard flows, Spotify restrictions, and the live-account smoke checklist.
 
 ### Testing
 

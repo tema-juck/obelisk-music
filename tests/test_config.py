@@ -50,6 +50,14 @@ def test_missing_file_uses_defaults_without_creating_anything(path):
         config.load_settings(path, required=True)
 
 
+@pytest.mark.parametrize("theme", ["midnight", "mono"])
+def test_supported_theme_file_and_environment_override(path, monkeypatch, theme):
+    write(path, f'[appearance]\ntheme = "{theme}"')
+    assert config.load_settings(path).appearance.theme == theme
+    monkeypatch.setenv("OBELISK_THEME", "mono")
+    assert config.load_settings(path).appearance.theme == "mono"
+
+
 def test_default_discovery_supports_an_os_symlink_for_the_home_directory(
     monkeypatch, tmp_path
 ):

@@ -2,12 +2,29 @@
 
 from __future__ import annotations
 
+import time
+from urllib.parse import quote
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widgets import Static
 
-from .models import Playback
+from .models import Album, Artist, Playback, Track
+
+
+def spotify_url(item: Album | Artist | Track) -> str | None:
+    if isinstance(item, Track):
+        if not item.uri or not item.uri.startswith("spotify:track:"):
+            return None
+        kind, identifier = "track", item.uri.removeprefix("spotify:track:")
+    else:
+        kind, identifier = ("album" if isinstance(item, Album) else "artist"), item.id
+    return (
+        f"https://open.spotify.com/{kind}/{quote(identifier, safe='')}"
+        if identifier
+        else None
+    )
 
 
 class PlainText(Static):
@@ -18,13 +35,29 @@ class PlainText(Static):
 class FeedbackBar(PlainText):
     """Polling never replaces feedback from a user's command."""
 
-    HINT = "j/k Move · Enter Open/Play · d Devices · ? Help · q Quit"
+    HINT = "j/k Move · Enter Open · / Search · d Devices · ? Help · q Quit"
 
     def __init__(self, *, vim_keys: bool = True, **kwargs) -> None:
         self.hint = self.HINT if vim_keys else self.HINT.replace("j/k", "↑/↓")
         super().__init__(self.hint, **kwargs)
         self._clear_timer: Timer | None = None
         self._command_feedback = False
+        self._persistent = False
+        self.vim_keys = vim_keys
+
+    def set_context(self, pane: str) -> None:
+        hint = (
+            self.HINT
+            if pane == "playlists"
+            else "j/k Move · Enter Play · a/A Album/Artist · Esc Back · / Search · ? Help"
+        )
+        self.hint = hint if self.vim_keys else hint.replace("j/k", "↑/↓")
+        if (
+            self._clear_timer is None
+            and not self._command_feedback
+            and not self._persistent
+        ):
+            self.update(self.hint)
 
     def show_message(
         self, message: str, *, command: bool = False, persistent: bool = False
@@ -34,6 +67,7 @@ class FeedbackBar(PlainText):
         if self._clear_timer is not None:
             self._clear_timer.stop()
         self._command_feedback = command
+        self._persistent = persistent
         self.update(message)
         self._clear_timer = (
             None if persistent else self.set_timer(8, self.clear_message)
@@ -43,6 +77,7 @@ class FeedbackBar(PlainText):
         if self._clear_timer is not None:
             self._clear_timer.stop()
         self._command_feedback = False
+        self._persistent = False
         self._clear_timer = None
         self.update(self.hint)
 
@@ -66,6 +101,35 @@ class PlaybackProgress(PlainText):
 
 
 class NowPlaying(Vertical):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.playback = Playback()
+        self._observed = time.monotonic()
+
+    @property
+    def playing_uri(self) -> str | None:
+        return self.playback.item.uri if self.playback.item else None
+
+    @property
+    def position_ms(self) -> int:
+        playback = self.playback
+        duration = playback.item.duration_ms if playback.item else 0
+        position = playback.progress_ms or 0
+        if playback.is_playing and playback.progress_ms is not None and duration:
+            position += int(max(0, time.monotonic() - self._observed) * 1000)
+        return min(position, duration)
+
+    def on_mount(self) -> None:
+        self.set_interval(1, self._draw_time)
+
+    def set_playing(self, playing: bool) -> None:
+        position = self.position_ms if self.playback.progress_ms is not None else None
+        self.playback = self.playback.model_copy(
+            update={"progress_ms": position, "is_playing": playing}
+        )
+        self._observed = time.monotonic()
+        self._draw_time()
+
     def compose(self) -> ComposeResult:
         with Horizontal(id="song-row"):
             yield PlainText("Nothing playing", id="track")
@@ -85,20 +149,42 @@ class NowPlaying(Vertical):
         return f"{seconds // 60}:{seconds % 60:02}"
 
     def show_playback(self, playback: Playback) -> None:
+        self.playback = playback
+        self._observed = time.monotonic()
         item = playback.item
         self.query_one("#track", PlainText).update(
             item.name if item else "Nothing playing"
         )
-        artists = ", ".join(artist.name for artist in item.artists) if item else ""
-        self.query_one("#artist", PlainText).update(artists or "No artist")
-        self.query_one("#album", PlainText).update(
-            item.album.name if item and item.album else ""
-        )
+        self._draw_metadata()
         self.query_one("#device", PlainText).update(
             playback.device.name if playback.device else "No active device"
         )
-        duration = item.duration_ms if item else 0
-        position = min(playback.progress_ms or 0, duration)
+        self._draw_time()
+
+    def on_resize(self) -> None:
+        if self.is_mounted:
+            self._draw_metadata()
+
+    def _draw_metadata(self) -> None:
+        item = self.playback.item
+        artists = ", ".join(artist.name for artist in item.artists) if item else ""
+        album = item.album.name if item and item.album else ""
+        compact = self.app.has_class("compact")
+        self.query_one("#artist", PlainText).update(
+            " · ".join(
+                value
+                for value in (artists or "No artist", album if compact else "")
+                if value
+            )
+        )
+        self.query_one("#album", PlainText).update(album)
+
+    def _draw_time(self) -> None:
+        if not self.is_mounted:
+            return
+        playback = self.playback
+        duration = playback.item.duration_ms if playback.item else 0
+        position = self.position_ms
         self.query_one("#progress", PlaybackProgress).set_position(position, duration)
         self.query_one("#elapsed", PlainText).update(self._clock(position))
         self.query_one("#duration", PlainText).update(self._clock(duration))

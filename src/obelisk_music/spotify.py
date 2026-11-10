@@ -6,17 +6,29 @@ import asyncio
 import math
 import time
 from email.utils import parsedate_to_datetime
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import quote
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
 from .auth import AuthError
-from .models import Device, Page, Playback, Playlist, PlaylistEntry
+from .models import (
+    Album,
+    Artist,
+    CatalogItem,
+    CatalogKind,
+    Device,
+    Page,
+    Playback,
+    Playlist,
+    PlaylistEntry,
+    Track,
+)
 from .session import SpotifySession
 
 BASE = "https://api.spotify.com/v1"
+T = TypeVar("T")
 
 
 class SpotifyError(RuntimeError):
@@ -171,6 +183,108 @@ class SpotifyClient:
             "PUT",
             "/me/player/pause",
             params={"device_id": device_id} if device_id else None,
+        )
+
+    async def _catalog_page(
+        self,
+        path: str,
+        model: type[T],
+        offset: int,
+        *,
+        limit: int = 10,
+        params: dict[str, object] | None = None,
+        key: str | None = None,
+    ) -> Page[T | None]:
+        if offset < 0:
+            raise ValueError("A nonnegative catalog offset is required")
+        payload = await self.request(
+            "GET", path, params={**(params or {}), "offset": offset, "limit": limit}
+        )
+        try:
+            page = Page[model | None].model_validate(payload[key] if key else payload)
+        except (ValidationError, KeyError):
+            raise SpotifyError("Spotify returned invalid catalog data") from None
+        if page.offset != offset or len(page.items) > page.limit:
+            raise SpotifyError("Spotify returned an unexpected catalog page")
+        return page
+
+    async def search(
+        self, query: str, kind: CatalogKind = "track", offset: int = 0
+    ) -> Page[CatalogItem]:
+        if not query.strip() or len(query) > 256 or not 0 <= offset <= 1000:
+            raise ValueError("Search needs 1–256 characters and an offset up to 1000")
+        models = {"track": Track, "album": Album, "artist": Artist}
+        if kind not in models:
+            raise ValueError("Search supports tracks, albums and artists")
+        return await self._catalog_page(
+            "/search",
+            models[kind],
+            offset,
+            params={"q": query.strip(), "type": kind},
+            key=kind + "s",
+        )
+
+    async def album(self, identifier: str) -> Album:
+        return await self._catalog_resource("albums", identifier, Album)
+
+    async def artist(self, identifier: str) -> Artist:
+        return await self._catalog_resource("artists", identifier, Artist)
+
+    async def _catalog_resource(self, kind: str, identifier: str, model: type[T]) -> T:
+        if not identifier:
+            raise ValueError("A catalog ID is required")
+        payload = await self.request("GET", f"/{kind}/{quote(identifier, safe='')}")
+        try:
+            resource = TypeAdapter(model).validate_python(payload)
+        except ValidationError:
+            raise SpotifyError("Spotify returned invalid catalog metadata") from None
+        if resource.id != identifier:
+            raise SpotifyError("Spotify returned an unexpected catalog ID")
+        return resource
+
+    async def album_tracks(
+        self, identifier: str, offset: int = 0
+    ) -> Page[Track | None]:
+        if not identifier:
+            raise ValueError("An album ID is required")
+        return await self._catalog_page(
+            f"/albums/{quote(identifier, safe='')}/tracks", Track, offset, limit=50
+        )
+
+    async def artist_albums(
+        self, identifier: str, offset: int = 0
+    ) -> Page[Album | None]:
+        if not identifier:
+            raise ValueError("An artist ID is required")
+        return await self._catalog_page(
+            f"/artists/{quote(identifier, safe='')}/albums", Album, offset
+        )
+
+    async def play_track(self, uri: str, device_id: str | None = None) -> None:
+        if not uri.startswith("spotify:track:") or not uri.removeprefix(
+            "spotify:track:"
+        ):
+            raise ValueError("A Spotify track URI is required")
+        await self.request(
+            "PUT",
+            "/me/player/play",
+            params={"device_id": device_id} if device_id else None,
+            json={"uris": [uri]},
+        )
+
+    async def play_album(
+        self, identifier: str, position: int, device_id: str | None = None
+    ) -> None:
+        if not identifier or position < 0:
+            raise ValueError("An album ID and nonnegative position are required")
+        await self.request(
+            "PUT",
+            "/me/player/play",
+            params={"device_id": device_id} if device_id else None,
+            json={
+                "context_uri": f"spotify:album:{identifier}",
+                "offset": {"position": position},
+            },
         )
 
     async def play(self, device_id: str | None = None) -> None:

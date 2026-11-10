@@ -47,6 +47,11 @@ def check_config(command: list[str], root: Path, env: dict[str, str]) -> None:
     result = run("config", "validate", success=False)
     assert "DO_NOT_LEAK" not in result.stdout + result.stderr
     assert "config" in run("--help").stdout
-    path.write_text("[spotify]\nrefresh_interval = 11\n[interface]\nvim_keys = false\n")
-    run("config", "validate")
+    for theme in ("midnight", "mono"):
+        path.write_text(
+            "[spotify]\nrefresh_interval = 11\n[interface]\nvim_keys = false\n"
+            f'[appearance]\ntheme = "{theme}"\n'
+        )
+        run("config", "validate")
+    run("config", "validate", success=False, overrides={"OBELISK_THEME": "unsupported"})
     print("Installed configuration CLI smoke passed")
