@@ -83,8 +83,9 @@ locked=1
 check_existing() {
     installed_hash=
     if [ -e "$binary" ] || [ -L "$binary" ] || [ -e "$receipt" ] || [ -L "$receipt" ]; then
-        [ -f "$binary" ] && [ ! -L "$binary" ] && [ -f "$receipt" ] && [ ! -L "$receipt" ] \
-            || die "Refusing unmanaged installation at $binary; move existing files aside after inspection"
+        if [ ! -f "$binary" ] || [ -L "$binary" ] || [ ! -f "$receipt" ] || [ -L "$receipt" ]; then
+            die "Refusing unmanaged installation at $binary; move existing files aside after inspection"
+        fi
         installed_hash=$(hash_file "$binary") || die 'Cannot hash existing executable'
         expected_receipt=$(printf 'obelisk-music-installer-v1\n%s' "$installed_hash")
         [ "$(cat "$receipt")" = "$expected_receipt" ] \
