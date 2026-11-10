@@ -51,7 +51,9 @@ def test_information_flags_do_not_start_tui(monkeypatch, capsys, option):
     assert (
         f"obelisk {__version__}" in output
         if option == "--version"
-        else "--version" in output and "usage: obelisk" in output
+        else "--version" in output
+        and "usage: obelisk" in output
+        and "Obelisk Player" in output
     )
     constructor.assert_not_called()
 

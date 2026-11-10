@@ -100,7 +100,7 @@ fetch() {
     curl -q --fail --location --silent --show-error --proto '=https' --proto-redir '=https' \
         --connect-timeout 15 --max-time 120 --max-filesize 134217728 --output "$2" "$1"
 }
-api=https://api.github.com/repos/tema-juck/obelisk-music/releases
+api=https://api.github.com/repos/tema-juck/obelisk-player/releases
 if [ -n "$version" ]; then
     version=v${version#v}
     selector=$api/tags/$version
@@ -125,7 +125,7 @@ if [ -z "$version" ] && [ "$prerelease" -eq 0 ]; then
     case "$tag" in *-*) die 'Stable selection returned a prerelease; use --prerelease explicitly' ;; esac
 fi
 asset=obelisk-$tag-$target.tar.gz
-base=https://github.com/tema-juck/obelisk-music/releases/download/$tag
+base=https://github.com/tema-juck/obelisk-player/releases/download/$tag
 fetch "$base/SHA256SUMS" "$temporary/SHA256SUMS" || die 'Checksum download failed; nothing installed'
 expected_hash=$(awk -v tag="$tag" -v selected="$asset" '
     BEGIN {
@@ -166,7 +166,7 @@ check_existing
 # Atomic executable replacement; interrupted receipt updates fail closed on the next run.
 mv -f "$staged/obelisk" "$binary"
 mv -f "$staged/receipt" "$receipt" || die 'Executable installed but receipt update failed; inspect installation before retrying'
-printf 'Installed Obelisk Music %s (%s) to %s\n' "$tag" "$target" "$binary"
+printf 'Installed Obelisk Player %s (%s) to %s\n' "$tag" "$target" "$binary"
 case ":${PATH:-}:" in
     *":$bin_dir:"*) ;;
     *) printf 'PATH notice: add %s to your shell PATH explicitly, or invoke the executable by its full path. No profile files were modified.\n' "$bin_dir" >&2 ;;

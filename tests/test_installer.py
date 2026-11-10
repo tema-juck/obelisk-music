@@ -81,8 +81,8 @@ output = Path(args[args.index("--output") + 1])
 if os.environ.get("TEST_FAIL_DOWNLOAD") == "1":
     sys.exit(22)
 root = Path(os.environ["TEST_RELEASES"])
-api = "https://api.github.com/repos/tema-juck/obelisk-music/releases"
-base = "https://github.com/tema-juck/obelisk-music/releases/download/"
+api = "https://api.github.com/repos/tema-juck/obelisk-player/releases"
+base = "https://github.com/tema-juck/obelisk-player/releases/download/"
 if url.startswith(api):
     if url.endswith("/latest"):
         if os.environ.get("TEST_NO_STABLE"):
@@ -370,6 +370,9 @@ def test_custom_directory_spaces_upgrade_and_uninstall(installer, tmp_path):
     installer.env["PATH"] += os.pathsep + str(destination)
     first = installer.run()
     assert first.returncode == 0, first.stderr
+    assert (destination / ".obelisk-managed.sha256").read_text().splitlines()[0] == (
+        "obelisk-music-installer-v1"
+    )
     assert "PATH notice" not in first.stderr
     directory = installer.fixtures / PRE
     new = make_archive(

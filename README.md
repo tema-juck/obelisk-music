@@ -1,541 +1,273 @@
-# ◆ Obelisk Music
+<p align="center">
+  <img src="docs/assets/obelisk-poster.png" alt="Obelisk Player — original Obelisk Music project artwork" width="100%">
+</p>
 
-**A keyboard-first, open-source Spotify Connect terminal controller.**
+<p align="center">
+  <strong>Obelisk Player</strong><br>
+  A keyboard-first terminal music player.<br>
+  Control Spotify from your terminal with a fast, minimalist interface.
+</p>
 
-Python · Textual · Spotify Web API · macOS / Linux
+<p align="center">
+  <a href="https://github.com/tema-juck/obelisk-player/actions/workflows/ci.yml"><img src="https://github.com/tema-juck/obelisk-player/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/tema-juck/obelisk-player/releases"><img src="https://img.shields.io/badge/status-alpha-388bfd" alt="Status: alpha"></a>
+  <a href="#installation"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-388bfd" alt="Platforms: macOS and Linux"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.11%2B-388bfd" alt="Python 3.11 or newer"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-388bfd" alt="License: MIT"></a>
+</p>
 
-> **Status:** experimental MVP. Obelisk does not decrypt or stream Spotify audio. Spotify Desktop or another Spotify Connect device handles audio playback.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#see-obelisk-player-in-action">Showcase</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="https://github.com/tema-juck/obelisk-player/releases">Releases</a>
+</p>
 
-## Install a standalone executable
+## Your music, within reach
 
-The published pre-release is **v0.3.0-alpha.1**. The next candidate,
-**v0.3.0-alpha.2**, contains the F1 search playback fix and is not yet published.
-See the [changelog](CHANGELOG.md) and
-[prepared release notes](docs/releases/v0.3.0-alpha.2.md). Standalone executables
-include Python and runtime dependencies; installing Python, uv, or Homebrew is not required.
+Search Spotify, browse playlists, explore albums and artists, and control playback
+without leaving the terminal. Obelisk Player pairs a quiet, borderless Textual
+interface with keyboard navigation and a persistent Now Playing strip.
 
-Choose the target matching your computer:
+**Playback uses Spotify Connect.** Audio plays through Spotify Desktop or another
+controllable Connect device. Obelisk Player sends playback commands through the
+Spotify Web API; it does not stream or decode Spotify audio.
 
-| Computer | Target | Native build runner |
-| --- | --- | --- |
-| macOS Apple Silicon | `darwin-arm64` | `macos-15` ARM64 |
-| macOS Intel | `darwin-amd64` | `macos-15-intel` x86_64 |
-| Linux Intel/AMD 64-bit | `linux-amd64` | `ubuntu-22.04` x86_64 |
+> **Alpha software.** The current published prerelease is
+> [v0.3.0-alpha.2](https://github.com/tema-juck/obelisk-player/releases/tag/v0.3.0-alpha.2).
+> Playback requires Spotify Premium, your own Spotify Developer app, and a Connect
+> device. Account permissions, market availability, and Spotify API quotas apply.
 
-Linux builds target glibc systems (Ubuntu 22.04 or newer is the build baseline),
-not Alpine/musl. Older macOS versions are not verified. Linux ARM64 and Homebrew
+## See Obelisk Player in Action
+
+> **A terminal session, coming soon.**
+>
+> The upcoming screencast will walk through search → album → playback, keyboard
+> navigation, and device selection. Until then, explore the
+> [music experience guide](docs/music-experience.md) for the current flows.
+
+<!-- Maintainer: add docs/assets/obelisk-demo.gif, then replace the placeholder
+above with the following HTML. Keep this commented until the GIF exists.
+<p align="center">
+  <img src="docs/assets/obelisk-demo.gif"
+       alt="Obelisk Player interactive demo"
+       width="900">
+</p>
+-->
+
+## Features
+
+| Area | Available today |
+| --- | --- |
+| Playback | Spotify Connect play/pause, previous/next, and selected-track playback |
+| Authentication | OAuth 2.0 PKCE, automatic token refresh, OS keychain storage |
+| Global search | Debounced, paginated search across tracks, albums, and artists |
+| Discovery | Album tracks, artist albums, and links to Spotify |
+| Library | Paginated playlists and tracks, session caches, unavailable-item feedback |
+| Navigation | Arrow keys, optional Vim keys, pane switching, help and search overlays |
+| Now Playing | Track, artist, album, device, and locally interpolated progress |
+| Appearance | Dark blue `midnight` and monochrome `mono` themes |
+| Layout | Responsive browsing and overlays, including compact 40×12 terminals |
+| Devices | Spotify Connect device selection and playback transfer |
+
+Followed playlists can appear while their tracks remain inaccessible under
+Spotify's API restrictions. See [behavior and limitations](docs/music-experience.md).
+
+## Installation
+
+Standalone executables include Python and runtime dependencies.
+
+| Platform | Release target |
+| --- | --- |
+| macOS · Apple Silicon | `darwin-arm64` |
+| macOS · Intel | `darwin-amd64` |
+| Linux · Intel/AMD 64-bit, glibc | `linux-amd64` |
+
+Linux builds use Ubuntu 22.04 as the glibc baseline; Alpine/musl is unsupported.
+Older macOS versions are not verified. Windows, Linux ARM64, Homebrew, and PyPI
 installation are not provided.
 
-### Shell installer
+Download the installer, inspect it, then run it:
 
-Download the installer as a file, inspect it, then run it explicitly. Do not pipe
-remote scripts into your shell. It needs POSIX `sh`, `curl`, `tar`, `gzip`, common
-Unix utilities, and either `sha256sum` (usually Linux) or `shasum` (macOS).
-
-```bash
-curl --fail --location --proto '=https' --proto-redir '=https' --output install.sh https://raw.githubusercontent.com/tema-juck/obelisk-music/main/scripts/install.sh
+```sh
+curl --fail --location --proto '=https' --proto-redir '=https' --output install.sh https://raw.githubusercontent.com/tema-juck/obelisk-player/main/scripts/install.sh
 less install.sh
 sh install.sh --prerelease
 ```
 
-The default, `sh install.sh`, selects GitHub's latest **stable** release. There is
-no stable release yet, so use `--prerelease` to select the newest published release
-including prereleases, or choose an explicit version:
+There is no stable release yet. `--prerelease` selects the newest published release
+including prereleases; plain `sh install.sh` selects the latest stable release.
+Pin the current release with `sh install.sh --version v0.3.0-alpha.2`.
 
-```bash
-sh install.sh --version v0.3.0-alpha.1
-sh install.sh --prerelease --bin-dir "$HOME/bin"
-```
+The default destination is `${XDG_BIN_HOME:-$HOME/.local/bin}`. Use
+`--bin-dir "$HOME/bin"` for another user-owned directory. If needed, add the default
+location to your shell configuration:
 
-The default destination is `${XDG_BIN_HOME:-$HOME/.local/bin}`. The installer never
-uses sudo, edits shell profiles, runs Obelisk, or changes macOS security settings.
-It reports when the directory is absent from PATH. For the default location,
-explicitly add the following to your shell configuration if needed:
-
-```bash
+```sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The script verifies the selected archive against `SHA256SUMS` before bounded
-decompression, accepts only the expected three regular archive members, and reads
-only `obelisk` to a file without filesystem extraction. The compressed and expanded
-archive limit is 128 MiB. Checksums detect corruption; they do not independently
-prove publisher identity.
+The installer verifies `SHA256SUMS` before installing and never uses sudo or runs
+the downloaded executable. Re-run it to upgrade an unchanged managed installation.
+For manual downloads, checksum verification, macOS signing limitations,
+uninstallation, and troubleshooting, see the [installation guide](docs/installation.md).
 
-### Upgrade and uninstall
+## Quick Start
 
-Re-run the reviewed installer with the desired channel or `--version` to upgrade.
-The hidden `.obelisk-managed.sha256` receipt records the installed executable's
-hash. Only an unchanged managed executable may be replaced. Existing manual
-installations, unrelated binaries, symlinks, and modified files are refused: inspect
-and move them aside yourself before switching to this installer. There is no force
-overwrite option. Keep the receipt alongside the executable.
+After [installing `obelisk`](#installation):
 
-Download and inspect the uninstaller before running it, using the same directory
-as installation:
+1. Create your own app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+   with Web API access. Register `http://127.0.0.1:8765/callback` exactly and permit
+   your Spotify account to use the app in Development Mode.
+2. Initialize configuration and set `spotify.client_id` to the app's public Client ID:
 
-```bash
-curl --fail --location --proto '=https' --proto-redir '=https' --output uninstall.sh https://raw.githubusercontent.com/tema-juck/obelisk-music/main/scripts/uninstall.sh
-less uninstall.sh
-sh uninstall.sh
-# Custom installation: sh uninstall.sh --bin-dir "$HOME/bin"
+   ```sh
+   obelisk config init
+   obelisk config edit
+   obelisk config validate
+   ```
+
+3. Open Spotify Desktop or another Connect device and start a track.
+4. Launch the player, then press **l** to authorize in your browser:
+
+   ```sh
+   obelisk
+   ```
+
+Return to the terminal after authorization. Press **d** to select a device and
+**/** to search. No client secret is needed. Existing `SPOTIFY_CLIENT_ID` setups
+continue to work; `.env` files are not loaded automatically.
+
+## Keyboard Shortcuts
+
+Bindings follow the current application, library, and catalog screens. Letter
+shortcuts are lowercase unless shown otherwise; **A** means Shift+a.
+
+| Key | Action | Context |
+| --- | --- | --- |
+| ↓ / ↑ · j / k | Next / previous item | Lists; Vim keys are configurable |
+| Enter | Open playlist, album, artist / play selected track | Lists and results |
+| Tab / Shift+Tab | Switch pane or search focus | Library and catalog |
+| Escape | Back / close overlay | Browsing and dialogs |
+| / | Search Spotify / refocus search input | Library / catalog results |
+| F1 / F2 / F3 | Search tracks / albums / artists | Search overlay |
+| a / A | Open selected track's album / first credited artist | Library and catalog results |
+| Space | Play / pause | Library and catalog results |
+| n / p | Next / previous track | Library and catalog results |
+| d | Select a Spotify Connect device | Library and catalog results |
+| l | Authorize Spotify | Library |
+| r | Refresh playback and current view | Library; current list in catalog/devices |
+| ? | Show keyboard help | Library and catalog results |
+| q | Quit the player | Library and catalog results |
+
+Enter on **Load more…** fetches the next page. In the search input, Down, Enter,
+or Tab focuses results; typing does not trigger playback shortcuts. Device and
+help dialogs use **Escape** or **q** to close; Enter transfers to the selected
+controllable device. Navigation alone never starts playback.
+
+## Configuration
+
+Run `obelisk config path` to find the configuration file:
+
+- Default: `~/.config/obelisk/config.toml` on macOS and Linux.
+- With `XDG_CONFIG_HOME`: `$XDG_CONFIG_HOME/obelisk/config.toml`; the base must be
+  an absolute path without `..` components.
+
+```toml
+[spotify]
+client_id = "your_client_id_here"
+refresh_interval = 8
+
+[appearance]
+theme = "midnight"
+
+[interface]
+vim_keys = true
 ```
 
-It removes only the unchanged managed executable and its receipt. Other files,
-configuration, and Spotify keychain credentials remain. To remove login credentials,
-remove the `obelisk-music` entry from your OS keychain explicitly.
+Choose **`midnight`** for dark blue or **`mono`** for monochrome. Restart after
+editing. Precedence is **environment overrides → configuration file → defaults**;
+the file must still have valid syntax and schema. Supported overrides are
+`SPOTIFY_CLIENT_ID`, `OBELISK_REFRESH_INTERVAL`, `OBELISK_THEME`, and
+`OBELISK_VIM_KEYS`. `SPOTIFY_REDIRECT_URI` separately overrides the OAuth callback.
 
-Concurrent install/uninstall operations share a directory lock. After a forced
-interruption, inspect the installation before retrying: a stale lock or mismatched
-receipt deliberately blocks changes. Once no installer is running, an empty stale
-`.obelisk-install.lock` can be removed manually. Never bypass a checksum failure.
+`config init` never overwrites existing files. Refresh tokens remain in the OS
+keychain under the compatibility service name `obelisk-music`; keep tokens and
+client secrets out of TOML. The [configuration guide](docs/configuration.md)
+covers validation, permissions, editor selection, and environment behavior.
 
-### Verify release checksums manually
+## Architecture & Tech Stack
 
-Download from [GitHub Releases](https://github.com/tema-juck/obelisk-music/releases).
-For example, for Apple Silicon, run the following in an empty download directory;
-replace `darwin-arm64` with `darwin-amd64` for Intel macOS or `linux-amd64` for Linux:
-
-```bash
-release=v0.3.0-alpha.1
-target=darwin-arm64
-asset="obelisk-${release}-${target}.tar.gz"
-base="https://github.com/tema-juck/obelisk-music/releases/download/${release}"
-curl --fail --location --output "$asset" "$base/$asset"
-curl --fail --location --output SHA256SUMS "$base/SHA256SUMS"
-awk -v asset="$asset" '$2 == asset {print}' SHA256SUMS > "$asset.sha256"
-test -s "$asset.sha256"
+```text
+Textual UI + async workers
+        ↓
+SpotifyLibrary · SpotifySession · SpotifyClient
+        ↓
+Spotify Web API → Spotify Connect device → audio
 ```
 
-Verify **before extracting or installing**. The checksum file contains all three
-archives, so the commands above select only the one you downloaded:
+Python 3.11+, Textual/Rich, HTTPX, Pydantic v2, and `keyring` form the runtime.
+Textual workers keep network operations asynchronous; UI widgets emit intents.
+The session layer coordinates PKCE, token refresh, and shared request cooldowns.
+The library layer owns pagination and caches; playback commands are serialized.
 
-```bash
-# macOS: this must print OK and exit successfully
-shasum -a 256 -c "$asset.sha256"
+Explore the [source](src/obelisk_music/), [music experience](docs/music-experience.md),
+[design system](DESIGN.md), and [UX contract](UX-CONTRACT.md).
 
-# Linux: use this instead
-sha256sum -c "$asset.sha256"
-```
+## Development
 
-These commands are an independent checksum check; the installer performs its own
-verification before installing and does not execute the downloaded application.
+Use [uv](https://docs.astral.sh/uv/) with Python 3.11 or newer. CI checks Python
+3.13 and 3.14 on Ubuntu and macOS.
 
-These initial macOS binaries use ad-hoc signing, not Developer ID signing or Apple
-notarization. If macOS blocks a verified download, follow Apple's
-[Open Anyway procedure in Privacy & Security](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
-Do not disable Gatekeeper or remove security protections. Checksums detect file
-corruption; they are not a publisher identity signature.
-
-### Configure Spotify and start
-
-Create your own Spotify Developer app, register
-`http://127.0.0.1:8765/callback` exactly, and allowlist your Spotify account. Spotify
-Premium and a Spotify Connect playback device are required.
-
-Published alpha.4 and current source builds support TOML configuration:
-
-```bash
-obelisk config init
-obelisk config edit
-obelisk config validate
-obelisk
-```
-
-Set `spotify.client_id` in `~/.config/obelisk/config.toml`, or under
-`$XDG_CONFIG_HOME/obelisk/config.toml` when set. Use `obelisk config path` to print
-the effective location. The file also supports playback polling interval, the
-`midnight` palette, and enabling/disabling Vim navigation. Releases since
-v0.3.0-alpha.1 also support the `mono` palette. See
-[Configuration](docs/configuration.md) for the schema, validation, permissions,
-editor selection, and environment overrides.
-
-Published `v0.2.0-alpha.1` binaries predate these commands. Those binaries, and
-users who prefer environment setup, can continue using:
-
-```bash
-export SPOTIFY_CLIENT_ID="your_client_id_here"
-obelisk
-```
-
-Press **L** to authorize. A client ID is public application identification; no
-client secret is needed. Never place access or refresh tokens in shell setup,
-the repository, or release archives. `.env` files are not loaded automatically.
-
-### Troubleshooting
-
-- **Command not found:** check `~/.local/bin` is on PATH, or run that executable by its full path.
-- **Wrong architecture / bad CPU type:** use the archive matching your hardware; builds are native, not universal or cross-compiled.
-- **Login fails:** verify the client ID, exact callback URL, account allowlist, and that port 8765 is available. Obelisk reports locked/unavailable keychains instead of storing tokens in plaintext.
-- **Configuration error:** run `obelisk config path`, repair with `config edit`, then `config validate`. Unset an invalid environment override to use the file. Config creation refuses symlinks and never overwrites files.
-- **Linux keychain unavailable:** use a desktop session with a running Secret Service keyring and D-Bus session. Headless servers may not provide a secure credential backend.
-- **No playback device:** open Spotify, start playback, then press **D** to select a controllable device. Restricted or disappeared devices cannot accept commands.
-- **One-file startup fails:** PyInstaller needs a writable temporary directory that permits loading executable code. The smoke test also requires a real PTY and OS IPC support; restrictive sandboxes can block these.
-
-## Features
-
-- Spotify authorization using OAuth 2.0 PKCE (no client secret)
-- Refresh token stored in your OS keychain via `keyring`
-- Current song, artist and playback device display
-- Play/pause, previous and next keyboard bindings
-- Periodic playback state refresh
-- Automatic token refresh and bounded recovery after an expired-token response
-- Responsive layouts, including compact terminals down to 40×12
-- Paginated playlist and track browsing with session-local page caching
-- Playlist owners and available item counts; unavailable entries keep their positions
-- Enter-to-play using playlist context and the original item offset
-- Keyboard-driven Spotify Connect device selection and playback transfer
-- Validated XDG TOML configuration and `config init/edit/path/validate` commands
-
-Available since v0.3.0-alpha.1:
-
-- Debounced, paginated Spotify track/album/artist search with `/`
-- Album tracks and artist albums with context-aware playback
-- Local elapsed-time interpolation without additional Spotify polling
-- A `mono` theme alongside `midnight`, plus refined keyboard and overlay navigation
-
-## Getting started
-
-Requires Python 3.11+, [uv](https://docs.astral.sh/uv/), and Spotify Premium.
-This section is for running from source. Standalone installation is described above.
-
-1. Create your **own** Spotify Developer application with **Web API** selected.
-2. Set the redirect URI exactly to `http://127.0.0.1:8765/callback`.
-3. Make sure your Spotify user is permitted to use the app in Development Mode.
-4. Open the official Spotify app on your Mac and start playing a track to establish an active device.
-5. Run:
-
-```bash
-uv sync --dev
-uv run obelisk config init
-uv run obelisk config edit
-uv run obelisk config validate
+```sh
+git clone https://github.com/tema-juck/obelisk-player.git
+cd obelisk-player
+uv sync --frozen --dev
 uv run obelisk
 ```
 
-Set `spotify.client_id` in the editor. `SPOTIFY_CLIENT_ID` remains an override for
-existing environment setups. Press **L** to open browser authorization. Complete
-the consent form and return to the terminal.
-After upgrading from the playback-only version, press **L** once to grant
-`playlist-read-private` and `playlist-read-collaborative`. Token refresh cannot add
-permissions to an existing grant.
+Run the project checks and build packages:
 
-### Keyboard shortcuts
-
-| Key | Action |
-| --- | --- |
-| J / ↓ | Next item |
-| K / ↑ | Previous item |
-| Enter | Open playlist, album, or artist / play selected track |
-| Tab / Shift+Tab | Switch browsing pane / search input and results |
-| Escape | Return to playlists / close overlay |
-| L | Authorize Spotify |
-| Space | Play/pause |
-| N | Next |
-| P | Previous |
-| D | Spotify Connect device selector |
-| R | Refresh playback and the current browsing view |
-| ? | Keyboard shortcuts |
-| Q | Quit |
-| / | Search Spotify (since v0.3.0-alpha.1) |
-| F1 / F2 / F3 | Search tracks / albums / artists |
-| a / A | Selected track's album / first artist |
-
-Enter on **Load more…** fetches the next page. Opening a cached playlist makes no
-additional library requests. **R** reloads the focused view from its first page;
-refreshing the playlist list also clears cached track pages. A new login clears
-the library cache and selected target device.
-
-Normal terminals show both browsing panes. At narrow widths, **Tab** switches the
-single visible pane and **Escape** returns to playlists. The playback strip stays
-visible. Row highlighting and **▸** mark selection; **♫** marks the currently
-playing Spotify track URI. Merely navigating never starts playback.
-
-In the device selector, **Enter** transfers to the selected controllable device,
-**R** reloads available devices, and **Escape** or **Q** closes the selector. The
-active device has **●**; a previously selected target is labeled separately.
-Transfers preserve playback state. The target changes only after a successful
-transfer, and failed commands never silently switch to another device. Dialogs
-and focused text inputs do not trigger application playback shortcuts.
-
-Published v0.3.0-alpha.1 includes **/** search, album/artist browsing, a locally
-updating Now Playing clock, and a monochrome theme. The v0.3.0-alpha.2 candidate
-fixes F1 playback using the selected track URI in its album context. Spotify may
-continue through the album afterward. See [Music experience](docs/music-experience.md)
-for keyboard flows, Spotify restrictions, and the live-account smoke checklist.
-
-### Testing
-
-```bash
-uv run pytest -q
-uv run ruff check .
-uv run ruff format --check .
-```
-
-### CI checks locally
-
-GitHub Actions runs on pull requests targeting `main` and pushes to `main`, with
-Ubuntu and macOS jobs for Python 3.13 and 3.14. Actions are pinned to commit SHAs;
-the workflow pins uv to 0.13.7 and uses read-only repository permissions.
-
-Run the equivalent checks from the repository root:
-
-```bash
-export UV_FROZEN=true
-uv sync --frozen --dev
+```sh
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest -q
-uv build
-uv run python scripts/smoke_wheel.py dist/*.whl
-```
-
-Set `UV_PYTHON=3.13` or `UV_PYTHON=3.14` before these commands to select a matrix
-version. uv must be on `PATH`; CI uses 0.13.7. If `dist` contains older wheels,
-pass the freshly built wheel's exact path instead of the wildcard.
-
-The smoke check verifies the stylesheet and runtime modules inside the wheel,
-creates a temporary virtual environment outside the checkout, installs hashed
-runtime dependencies exported from `uv.lock`, and installs the wheel without
-development dependencies. It then checks dependency consistency, the `obelisk`
-entry point, and headless startup/quit from the installed package in Python
-isolated mode. The temporary environment is removed afterward.
-
-Tests use mocked Spotify responses and block network, browser, and keychain
-access. No Spotify credentials are needed. Dependency installation and building
-can download packages from PyPI; the tests and installed-app probe do not contact
-Spotify. Local checks do not establish that GitHub-hosted jobs have passed;
-those results are available only after the workflow runs on GitHub.
-
-## Release procedure (maintainers)
-
-`pyproject.toml` is the application version authority. Runtime `__version__`, the
-TUI footer, and `obelisk --version` read installed package metadata. PEP 440
-`0.3.0a2` corresponds to tag `v0.3.0-alpha.2`; beta and rc tags similarly map to
-`bN` and `rcN`. Mismatched, malformed, dev, or local-version tags are rejected.
-
-The next release is **v0.3.0-alpha.2**, not yet published. Before creating a tag,
-update `[project].version`, run `uv lock`, then `uv sync --frozen --dev --group release`.
-Commit `pyproject.toml` and the regenerated `uv.lock` together, and require green CI
-on the exact main commit that will be tagged. Synchronizing refreshes installed
-package metadata; changing a tag name alone cannot change `obelisk --version`.
-
-Release tools are frozen in `uv.lock`, including PyInstaller 6.22.3 and Hatchling
-1.33.0. The release workflow pins uv 0.13.7 and Python 3.13.18. On each target OS,
-the local equivalent is:
-
-```bash
-export UV_PYTHON=3.13.18
-uv sync --frozen --dev --group release
-uv run python scripts/release.py verify-tag --tag v0.3.0-alpha.2
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest -q
+shellcheck scripts/install.sh scripts/uninstall.sh
 uv build
 uv run python scripts/smoke_wheel.py dist/obelisk_music-0.3.0a2-py3-none-any.whl
-# Choose the native target from the platform table; other targets are refused.
-uv run python scripts/build_binary.py --tag v0.3.0-alpha.2 --target darwin-arm64
 ```
 
-The binary smoke copies `obelisk` outside the checkout, clears Spotify/Python
-configuration variables, checks help/version, waits for the real styled TUI to
-render in an 80×24 PTY, sends **Q**, and requires successful exit. Help/version
-have 30-second timeouts; startup/quit has 45 seconds; the build has 15 minutes.
-No Spotify credentials are required. Archives contain only `obelisk`, `LICENSE`,
-and version/platform/commit/checksum build metadata. Tar ordering, ownership,
-timestamps, and gzip headers are normalized. Bit-for-bit binary reproducibility
-across changing runner images, SDKs, or ad-hoc signatures is not guaranteed.
+Tests mock Spotify and block real network, browser, and keychain access. The wheel
+smoke checks a clean installation outside the checkout. See
+[development](docs/development.md) and [release engineering](docs/releasing.md)
+for CI parity, native builds, and publication gates.
 
-After review and merge, require green CI on the reviewed main commit. **Only
-after explicit tag/publication approval**, run the following. The subshell stops
-on any failure, and the tag is pinned to the inspected commit. Keep all existing
-tags and releases, including v0.3.0-alpha.1, unchanged. Creating/pushing
-v0.3.0-alpha.2 starts the release workflow and, if all gates pass, publishes a prerelease.
+**Compatibility:** public branding is Obelisk Player. The `obelisk` executable,
+`obelisk-music` distribution, `obelisk_music` imports, configuration paths, keychain
+service, installer receipts, version, and existing release assets remain unchanged.
 
-```bash
-(
-  set -eu
-  git switch main
-  git pull --ff-only
-  test -z "$(git status --porcelain)"
-  release_commit=$(git rev-parse HEAD)
-  # Confirm CI is green for this exact release_commit before continuing.
-  uv sync --frozen --dev --group release
-  uv run obelisk --version
-  uv run python scripts/release.py verify-tag --tag v0.3.0-alpha.2
-  git tag -a v0.3.0-alpha.2 "$release_commit" -m "Obelisk Music v0.3.0-alpha.2"
-  git push origin refs/tags/v0.3.0-alpha.2
-)
-```
+## Roadmap
 
-After publication, the installer can select `--version v0.3.0-alpha.2` (or
-`--prerelease`). It constructs `obelisk-v0.3.0-alpha.2-{target}.tar.gz` names from
-the selected tag and verifies `SHA256SUMS`; there is no installer version constant
-to update. `obelisk --version` prints the PEP 440 spelling `obelisk 0.3.0a2`.
-Do not advertise v0.3.0-alpha.2 downloads until the complete release is published.
+Future directions, separate from the implemented features above:
 
-The tag-only release workflow first runs quality/wheel checks, then all three
-native regression/build/smoke jobs with read-only repository permissions. Only
-the publishing job receives `contents: write`. It validates the complete archive
-set without extracting or executing downloads, checks platform headers, package
-version, source commit, pinned tool versions, and binary checksums, then generates
-`SHA256SUMS`. It verifies the remote tag still points to the build commit.
+- Research internet radio sources and playback requirements.
+- Refine keyboard flows, feedback, and compact terminal UX.
+- Explore additional customization beyond the two current themes.
 
-Publishing discovers drafts through the authenticated, paginated release list,
-then creates a **draft** only if no matching release exists. It uploads missing
-archives/checksums, verifies every asset by release ID, rechecks the tag, and only
-then makes the release public. Alpha/beta/rc releases are marked prerelease and
-not Latest. A failed build produces no release; a failed upload or verification leaves only an
-unpublished draft. Retrying with the same validated artifacts reuses that draft,
-skips identical uploaded assets, and uploads only missing files without clobbering.
-Conflicting, unexpected, duplicate, or unfinished (`starter`) assets require manual
-investigation; the script neither deletes nor replaces them. An already published
-release is an unchanged success only if all expected assets match exactly;
-otherwise the script refuses changes. Avoid concurrent manual edits while it runs.
+These are exploratory directions, not release commitments. Spotify integration
+continues to use Connect for playback.
 
-A release is considered absent only after a successful complete release listing
-contains no match. Authentication/permission errors, repository 404s, rate limits,
-server errors, malformed responses, and network timeouts abort; they are never
-converted to "release missing." The published-release-by-tag endpoint cannot find
-drafts and is deliberately unused. See [GitHub's release API contracts](https://docs.github.com/en/rest/releases/releases).
-Do not move a published tag; use a new version for application changes.
+## Project Links
 
-### Failed alpha.2 attempt
+[Changelog](CHANGELOG.md) ·
+[Releases](https://github.com/tema-juck/obelisk-player/releases) ·
+[Documentation](docs/README.md) ·
+[Issues](https://github.com/tema-juck/obelisk-player/issues) ·
+[License](LICENSE)
 
-The [alpha.2 workflow run 42723294518](https://github.com/tema-juck/obelisk-music/actions/runs/42723294518)
-ran the immutable commit `23f63ea5e6a045518bac86f9ec8649ad541732b6`. Its
-[pyproject.toml](https://github.com/tema-juck/obelisk-music/blob/23f63ea5e6a045518bac86f9ec8649ad541732b6/pyproject.toml)
-contains `version = "0.2.0a1"`, while tag `v0.2.0-alpha.2` requires `0.2.0a2`.
-The version check correctly failed before native builds or publication; that run
-produced no artifacts. Keep the annotated alpha.2 tag object
-`7d1ac7f99de7a6af585f1821a1820a150c261955` unchanged.
+## License
 
-This attempt was followed by alpha.3, described below, and the published alpha.4.
-Use the current version procedure above for a new release. Do not delete, move,
-recreate, or reuse alpha.2.
-A rerun of the old workflow still reads the old tagged commit, even after this
-fix is merged into main. Preserve the strict tag/version guard.
-
-### Failed alpha.3 attempt and alpha.4 preparation
-
-The [alpha.3 release run 42725312503](https://github.com/tema-juck/obelisk-music/actions/runs/42725312503)
-used commit `9a0525119336f05457c2a35da4d86d257314aed6`. Its `0.2.0a3` metadata
-passed tag validation, but pytest reported **314 passed, 1 failed** because
-ShellCheck SC2015 flagged the installer/uninstaller's mixed conditional chains.
-Native builds and publication were skipped; this run produced no artifacts.
-
-Commit `31cb52e` replaced those guards with explicit POSIX conditionals, preserving
-symlink and receipt checks. It is included in main commit
-`4a866eb2a274dac911b2b4540140da7942656794`, whose
-[Ubuntu/macOS Python 3.13/3.14 CI run](https://github.com/tema-juck/obelisk-music/actions/runs/42727870548)
-passed. Alpha.4 was subsequently published as `0.2.0a4`. Keep that release
-unchanged; each later candidate requires its own reviewed commit and CI.
-
-Keep the alpha.3 tag object `143bf4a1206ab2876482e0f1252fe84ead3c92ee` and its
-original commit unchanged. Rerunning alpha.3 uses the old scripts even after the
-fix is merged into main. It was released in alpha.4; use a new version for later
-changes. Do not delete, move, recreate, or reuse alpha.3.
-
-### Recover the first `v0.2.0-alpha.1` publication
-
-Historical recovery instructions: alpha.1 was subsequently published. The commands
-below require the fixed publisher snapshot `cc4fcbd` with metadata `0.2.0a1`.
-The current checkout intentionally rejects v0.2.0-alpha.1 archives/tags; do not
-use it for this historical procedure or republish an existing release.
-
-The original [release run 42706661576](https://github.com/tema-juck/obelisk-music/actions/runs/42706661576)
-passed quality checks and all three native build/smoke jobs. Its publish job created
-a draft, then failed by trying to find that draft through the published-release
-endpoint. The log confirms `Contents: write`; the 404 does not indicate missing
-publishing permission. The three build artifacts were unexpired when inspected
-on 2026-11-09, with expiry on 2026-11-23 UTC. Check their availability again before
-recovery. The existing annotated tag resolves to
-`290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c`; keep it unchanged.
-
-**Rerunning that tag-triggered workflow still executes the old tagged code.**
-Merging this fix into main does not update the old run. The safest recovery is to
-review/merge the fixed publisher, require green CI, then use that publisher with
-the original run's three artifacts and original source commit. This changes no
-application binary or tag and preserves all archive and publication gates.
-
-On a trusted machine with GitHub CLI authenticated with repository write access,
-from the reviewed fixed checkout, stage and validate without publishing:
-
-```bash
-export GH_HOST=github.com
-export UV_PYTHON=3.13.18
-recovery_dir="$(mktemp -d)"
-gh run view 42706661576 --repo github.com/tema-juck/obelisk-music --json headSha,jobs
-# Confirm the original commit above and success of quality + all three native jobs.
-gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-darwin-arm64 --dir "$recovery_dir"
-gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-darwin-amd64 --dir "$recovery_dir"
-gh run download 42706661576 --repo github.com/tema-juck/obelisk-music --name native-linux-amd64 --dir "$recovery_dir"
-uv run --no-project python scripts/release.py validate --tag v0.2.0-alpha.1 --commit 290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c --directory "$recovery_dir"
-```
-
-**Only after explicit publication approval**, in the same shell and fixed checkout:
-
-```bash
-uv run --no-project python scripts/release.py publish --tag v0.2.0-alpha.1 --commit 290cfe4d70201b498ed3d4dc30e5b1e5a03b6a3c --repository tema-juck/obelisk-music --directory "$recovery_dir"
-```
-
-This resumes the existing draft if visible to the authenticated publisher, verifies
-its assets against the original archives and regenerated checksums, and publishes
-only the complete set. It does not delete or move the tag. If artifacts have
-expired, stop and review a rebuild of the **original tagged commit** on all three
-native platforms; fresh binaries may not match existing draft assets. Do not
-clobber mismatches or substitute binaries built from current main. A new version
-is the safer option if recovering the original set is no longer possible.
-
-This repository does not publish to PyPI, create Homebrew taps, or build Linux
-ARM64 in this workflow. Platform verification claims require an actual native
-smoke result; local Apple Silicon checks do not verify Intel macOS or Linux.
-
-## Limitations
-
-- Audio plays in a separate Spotify Connect device (for example Spotify Desktop), not through Obelisk itself.
-- An active Spotify device is necessary for basic playback controls.
-- The Spotify Web API enforces rate and development quotas. Avoid aggressive polling.
-- Expired access tokens refresh automatically. Revoked or expired authorization still requires login; press **R** to retry stored credentials or **L** to authorize again.
-- A Spotify 429 response starts a shared request cooldown using `Retry-After` (30 seconds if absent or invalid). Playback commands are not automatically replayed after rate limits or uncertain network failures.
-- OS keychain operations and browser launching run off the UI thread. A pending credential write must finish before shutdown to preserve token rotation; an OS keychain prompt may delay process exit.
-- Spotify can change API behavior and restrict endpoints for Development Mode applications.
-- Spotify exposes playlist items only for playlists the user owns or collaborates on. Followed playlists can appear in the list while their contents remain inaccessible; Obelisk shows an unavailable message without forcing login. See [Get Playlist Items](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items).
-- Null, local, explicitly unplayable, and unsupported items remain visible but cannot be started from Obelisk. Duplicate tracks remain separate occurrences. Spotify playback state identifies a track URI rather than a duplicate occurrence, so matching duplicates share the **♫** indicator.
-- Library pages are cached until refresh or login. External playlist edits can move item offsets; press **R** to reload after edits. Rejected context playback is reported without switching to another playback mode. Device availability and control depend on Spotify Connect; some device models do not appear in the API.
-
-## Architecture
-
-`Textual workers -> SpotifyClient + SpotifySession -> Spotify Web API -> Spotify Connect device`
-
-`auth.py` handles PKCE callbacks and keychain persistence; `session.py` coordinates
-token expiry and refresh; `spotify.py` reuses one HTTPX client and applies request
-cooldowns. `models.py` validates consumed Spotify data; `library.py` owns page
-caches and offset progression. `browser.py` renders keyboard browsing tables,
-`widgets.py` renders plain-text playback information, and `screens.py` provides
-device/help overlays. Widgets emit messages and do not make API requests.
-`app.py` coordinates managed workers, view revisions, playback commands, and
-session lifecycle. Playback mutations are serialized and do not get cancelled
-when browsing selections change.
-
-## Open source
-
-Contributions welcome. MIT licensed. This is an independent project, not affiliated with Spotify.
-
-## Minimal TUI design (v0.2)
-
-The interface is borderless, keyboard-first, and intentionally avoids buttons and heavy panels.
-Playlists and tracks use compact tables above a persistent playback strip, with
-a single browsing pane in narrow terminals. Help is an overlay rather than a
-permanent shortcut sidebar. No audio is decoded in this app.
-
-The layout is implemented in `src/obelisk_music/app.py` and styled in
-`src/obelisk_music/obelisk.tcss`. To try it:
-
-```shell
-uv sync --dev
-uv run obelisk
-```
-
-Keyboard: `j/k` navigate, `enter` open/play, `tab` switch pane, `d` devices,
-`?` help, `space` play/pause, `n/p` skip, `l` login, `r` refresh, `q` quit.
+[MIT](LICENSE). Copyright © 2026 Obelisk Music contributors; original attribution
+is retained. Obelisk Player is an independent open-source project, unaffiliated
+with Spotify. The supplied poster is preserved in its original design and carries
+the former project name and repository URL.

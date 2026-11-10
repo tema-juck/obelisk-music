@@ -1,9 +1,20 @@
 # Changelog
 
-## v0.3.0-alpha.2 — Unreleased
+## Unreleased
+
+### Changed
+
+- Public branding is now **Obelisk Player**, with repository links at
+  [tema-juck/obelisk-player](https://github.com/tema-juck/obelisk-player).
+- Redesigned the README with project artwork, a future demo section, and focused
+  installation, development, and release documentation.
+- Preserved `obelisk`, the `obelisk-music` distribution, `obelisk_music` imports,
+  configuration paths, keychain storage, installer receipts, and package version.
+
+## v0.3.0-alpha.2 — Published
 
 Package version: `0.3.0a2`. Contains F1 playback hotfix `a189d5b`, merged into
-main at `589c06e`. The latest published baseline remains `v0.3.0-alpha.1`.
+main at `589c06e`. Published on 2026-11-10; existing tags and assets are unchanged.
 
 ### Fixed
 
@@ -23,7 +34,7 @@ main at `589c06e`. The latest published baseline remains `v0.3.0-alpha.1`.
 
 Spotify may continue to subsequent album tracks after the selected track ends.
 See [alpha.2 release notes](docs/releases/v0.3.0-alpha.2.md) for verification,
-installation, and the remaining publication gates.
+installation, and the original pre-publication verification record.
 
 ## v0.3.0-alpha.1 — Published
 

@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: Obelisk Music
+name: Obelisk Player
 description: A quiet keyboard-first Spotify Connect terminal controller.
 colors:
   primary: "#91b7ff"
@@ -19,7 +19,7 @@ omitted:
     reason: Shared Textual component owners and states are documented below.
 ---
 
-# Obelisk Music design
+# Obelisk Player design
 
 ## Overview
 

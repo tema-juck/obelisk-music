@@ -16,7 +16,7 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 bin_dir=${bin_dir:-${XDG_BIN_HOME:-${HOME:?HOME or --bin-dir is required}/.local/bin}}
-[ -d "$bin_dir" ] || { printf '%s\n' 'No managed Obelisk Music installation found.'; exit 0; }
+[ -d "$bin_dir" ] || { printf '%s\n' 'No managed Obelisk Player installation found.'; exit 0; }
 bin_dir=$(cd "$bin_dir" && pwd -P) || die 'Cannot resolve installation directory'
 case "$bin_dir/" in //|/bin/*|/sbin/*|/usr/*|/opt/*|/etc/*|/lib/*|/lib64/*|/boot/*|/System/*|/Library/*|/Applications/*)
     die 'Choose a user-owned directory, not a system installation path' ;;
@@ -30,7 +30,7 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 if [ ! -e "$binary" ] && [ ! -L "$binary" ] && [ ! -e "$receipt" ] && [ ! -L "$receipt" ]; then
-    printf '%s\n' 'No managed Obelisk Music installation found.'
+    printf '%s\n' 'No managed Obelisk Player installation found.'
     exit 0
 fi
 if [ ! -f "$binary" ] || [ -L "$binary" ] || [ ! -f "$receipt" ] || [ -L "$receipt" ]; then

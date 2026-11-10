@@ -1,8 +1,8 @@
 # P2 music experience
 
-P2 is available in published v0.3.0-alpha.1. The v0.3.0-alpha.2 candidate
-(package version `0.3.0a2`) adds the F1 playback hotfix described below; it is not
-yet published. See the [alpha.2 release notes](releases/v0.3.0-alpha.2.md) and
+P2 is available in published v0.3.0-alpha.1. Published v0.3.0-alpha.2
+(package version `0.3.0a2`) adds the F1 playback hotfix described below. See the
+[alpha.2 release notes](releases/v0.3.0-alpha.2.md) and
 [changelog](../CHANGELOG.md). Older alpha.4 binaries do not include P2.
 
 ## Search and browsing

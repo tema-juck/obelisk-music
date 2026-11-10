@@ -106,7 +106,7 @@ async def _authorization_code(
                 else:
                     result.set_result(params["code"][0])
             body = (
-                b"Obelisk Music: return to the terminal."
+                b"Obelisk Player: return to the terminal."
                 if valid
                 else b"Invalid callback"
             )

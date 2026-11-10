@@ -65,7 +65,7 @@ def test_refresh_rotation_and_optional_refresh_token(monkeypatch):
         assert token.expires_in == 3600
         assert "test-access" not in repr(token)
         save.assert_called_once_with(
-            auth.SERVICE, "test-client", "rotated-test-refresh"
+            "obelisk-music", "test-client", "rotated-test-refresh"
         )
         save.reset_mock()
         async with httpx.AsyncClient(

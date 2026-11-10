@@ -272,6 +272,7 @@ def github(tmp_path, monkeypatch):
             assert endpoint == "repos/owner/repo/releases"
             assert remote.document is None
             assert f"target_commitish={COMMIT}" in args
+            assert f"name=Obelisk Player {TAG}" in args
             assert "draft=true" in args and "prerelease=true" in args
             remote.document = draft([])
             if remote.interrupted_create:
