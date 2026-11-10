@@ -1,7 +1,8 @@
 # P2 music experience
 
-These features are in development source builds. The package version is unchanged;
-published alpha.4 binaries do not acquire these features automatically.
+These features are prepared for v0.3.0-alpha.1 (package version `0.3.0a1`),
+not yet published. Published alpha.4 binaries do not include P2. See the
+[prepared release notes](releases/v0.3.0-alpha.1.md) and [changelog](../CHANGELOG.md).
 
 ## Search and browsing
 
