@@ -311,7 +311,7 @@ def publish(directory: Path, tag: str, commit: str, repository: str) -> None:
             "-F",
             f"prerelease={str(prerelease).lower()}",
             "-f",
-            f"name=Obelisk Music {tag}",
+            f"name=Obelisk Player {tag}",
             "-f",
             "body=Standalone Spotify Connect controller. See README for installation, checksums, and platform limitations.",
         )

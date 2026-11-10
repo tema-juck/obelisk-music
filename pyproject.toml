@@ -1,7 +1,7 @@
 [project]
 name = "obelisk-music"
 version = "0.3.0a2"
-description = "Keyboard-first Spotify Connect terminal controller"
+description = "Obelisk Player: a keyboard-first terminal music player for Spotify Connect"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -12,6 +12,12 @@ dependencies = [
     "keyring>=25",
     "pydantic>=2,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tema-juck/obelisk-player"
+Repository = "https://github.com/tema-juck/obelisk-player"
+Issues = "https://github.com/tema-juck/obelisk-player/issues"
+Changelog = "https://github.com/tema-juck/obelisk-player/blob/main/CHANGELOG.md"
 
 [project.scripts]
 obelisk = "obelisk_music.app:main"

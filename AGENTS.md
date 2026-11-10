@@ -1,8 +1,8 @@
-# AGENTS.md — Obelisk Music
+# AGENTS.md — Obelisk Player
 
 ## Project Overview
 
-Obelisk Music is an open-source, keyboard-first Spotify terminal controller built with Python and Textual.
+Obelisk Player is an open-source, keyboard-first Spotify terminal controller built with Python and Textual.
 
 The goal is to create a fast, minimalist, visually polished terminal music experience inspired by Cliamp, without copying its source code or design assets.
 

@@ -8,7 +8,8 @@ from .config import ConfigError, config_path, edit_config, init_config, load_set
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="obelisk", description="Keyboard-first Spotify Connect controller"
+        prog="obelisk",
+        description="Obelisk Player — a keyboard-first terminal music player.",
     )
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"

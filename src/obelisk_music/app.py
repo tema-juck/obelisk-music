@@ -31,7 +31,7 @@ from .widgets import FeedbackBar, NowPlaying, PlainText
 class ObeliskApp(App):
     """A quiet, text-first interface: Spotify Connect handles all audio."""
 
-    TITLE = "Obelisk Music"
+    TITLE = "Obelisk Player"
     CSS_PATH = "obelisk.tcss"
     BINDINGS: ClassVar[list[Binding | tuple[str, str, str]]] = [
         ("space", "toggle", "Play / Pause"),
@@ -118,7 +118,7 @@ class ObeliskApp(App):
     def compose(self) -> ComposeResult:
         with Vertical(id="shell"):
             with Horizontal(id="topbar"):
-                yield PlainText("◆ OBELISK MUSIC", id="brand")
+                yield PlainText("◆ OBELISK PLAYER", id="brand")
                 yield PlainText("● OFFLINE", id="connection")
             yield PlainText(id="top-rule")
             yield LibraryBrowser(

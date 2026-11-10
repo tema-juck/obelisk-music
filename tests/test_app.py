@@ -241,6 +241,8 @@ def test_layout_and_metadata_remain_visible_and_plain(monkeypatch, size):
             }
         )
         async with app.run_test(size=size) as pilot:
+            assert app.title == "Obelisk Player"
+            assert content(app, "#brand") == "◆ OBELISK PLAYER"
             authorize(app)
             monkeypatch.setattr(
                 app.spotify, "playback", AsyncMock(return_value=playback)

@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
-EXAMPLE = """# Obelisk Music configuration. Environment variables take precedence.
+EXAMPLE = """# Obelisk Player configuration. Environment variables take precedence.
 # Obtain a public Client ID at https://developer.spotify.com/dashboard
 # Register http://127.0.0.1:8765/callback and allow your Spotify account.
 # Never store client secrets, access tokens, or refresh tokens here.
