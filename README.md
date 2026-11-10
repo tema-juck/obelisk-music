@@ -14,6 +14,7 @@
   <a href="#installation"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux-388bfd" alt="Platforms: macOS and Linux"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/python-3.11%2B-388bfd" alt="Python 3.11 or newer"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-388bfd" alt="License: MIT"></a>
+  <a href="https://hub.xerj.org/contributors/tema-juck"><img src="https://hub.xerj.org/contributors/tema-juck/badge.svg" alt="XERJ Corpus Hub contributor"></a>
 </p>
 
 <p align="center">
