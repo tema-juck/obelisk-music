@@ -45,9 +45,15 @@ async def check_installed() -> None:
     from importlib.resources import files
     from unittest.mock import patch
 
+    import httpx
+    from textual.widgets import Input
+
     import obelisk_music
     from obelisk_music.app import ObeliskApp, main
+    from obelisk_music.browser import CatalogTable
     from obelisk_music.config import config_path, load_settings
+    from obelisk_music.models import Token
+    from obelisk_music.screens import CatalogScreen
 
     assert (
         Path(obelisk_music.__file__)
@@ -89,10 +95,46 @@ async def check_installed() -> None:
         ),
     ):
         path = config_path()
-        app = ObeliskApp(settings=load_settings(path), config_file=path)
+
+        def catalog(request):
+            assert request.url.path == "/v1/search"
+            return httpx.Response(
+                200,
+                json={
+                    "tracks": {
+                        "offset": 0,
+                        "limit": 10,
+                        "total": 1,
+                        "items": [
+                            {
+                                "name": "[red]Smoke track[/red]",
+                                "uri": "spotify:track:smoke",
+                            }
+                        ],
+                    }
+                },
+            )
+
+        app = ObeliskApp(
+            settings=load_settings(path),
+            config_file=path,
+            http=httpx.AsyncClient(transport=httpx.MockTransport(catalog)),
+        )
         async with app.run_test(size=(80, 24)) as pilot:
             assert app.query_one("#track").region.width > 0
             assert app.query_one("#device").region.bottom <= 24
+            assert app.theme == "mono"
+            app.session._install(
+                Token(access_token="mock-smoke-access", expires_in=3600)
+            )
+            await pilot.press("slash")
+            assert isinstance(app.screen, CatalogScreen)
+            app.screen.query_one(Input).value = "smoke"
+            await pilot.pause(0.4)
+            await app.workers.wait_for_complete()
+            assert app.screen.query_one(CatalogTable).row_count == 1
+            assert app.screen.entries[0][1].name == "[red]Smoke track[/red]"
+            await pilot.press("escape")
             await pilot.press("q")
             assert not app.is_running
         assert app.http.is_closed
