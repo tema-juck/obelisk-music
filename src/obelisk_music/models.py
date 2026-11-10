@@ -1,6 +1,6 @@
 """Validate the Spotify fields used by the controller."""
 
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, SecretStr
 
@@ -126,3 +126,7 @@ class Page(BaseModel, Generic[T]):
     def next_offset(self) -> int | None:
         following = self.offset + len(self.items)
         return following if self.items and following < self.total else None
+
+
+CatalogKind = Literal["track", "album", "artist"]
+CatalogItem = Track | Album | Artist | None

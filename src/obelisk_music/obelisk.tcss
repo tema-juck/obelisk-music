@@ -3,44 +3,53 @@ Screen { background: $background; color: $foreground; }
 #shell { width: 100%; height: 100%; padding: 1 3 0 3; }
 #topbar { height: 1; }
 #brand { width: 1fr; color: $accent; text-style: bold; }
-#connection { width: 18; text-align: right; color: #91b7ff; }
-#top-rule, #bottom-rule { height: 1; border-bottom: solid #273343; }
+#connection { width: 18; text-align: right; color: $accent; }
+#top-rule, #bottom-rule { height: 1; border-bottom: solid $panel; }
 #workspace { height: 1fr; min-height: 3; }
 #panes { height: 1fr; }
 #playlists-pane { width: 30%; padding-right: 2; }
 #tracks-pane { width: 1fr; }
-.pane-title { height: 1; color: #9aabbe; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
+.pane-title { height: 1; color: $muted; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
 NavigationTable { height: 1fr; background: $background; color: $foreground; border: none; scrollbar-size: 0 0; }
-NavigationTable > .datatable--header { background: #0c1118; color: #8b9db3; text-style: none; }
-NavigationTable > .datatable--cursor { background: #25374e; color: #edf4ff; text-style: bold; }
-NavigationTable > .datatable--hover { background: #172231; }
-NavigationTable:focus > .datatable--cursor { background: #294566; color: #edf4ff; }
-#library-message { height: 1; color: #9aabbe; text-wrap: nowrap; text-overflow: ellipsis; }
+NavigationTable > .datatable--header { background: $background; color: $muted; text-style: none; }
+NavigationTable > .datatable--cursor { background: $panel; color: $on-selection; text-style: bold; }
+NavigationTable > .datatable--hover { background: $panel; }
+NavigationTable:focus > .datatable--cursor { background: $selection; color: $on-selection; }
+#library-message { height: 1; color: $muted; text-wrap: nowrap; text-overflow: ellipsis; }
 #content { height: 3; width: 100%; }
 #song-row, #playback-row { height: 1; }
 #content PlainText { height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
-#track { width: 1fr; color: #f1f5fc; text-style: bold; }
-#artist { width: 1fr; color: #9eb2cc; }
-#album { width: 1fr; color: #95a5ba; }
-#controls { width: 9; color: #91b7ff; }
-#elapsed, #duration { width: 5; color: #9aabbe; }
-#time-divider { width: 3; color: #9aabbe; }
-#device { width: 1fr; text-align: right; color: #acbbcc; }
-#progress { height: 1; color: #91b7ff; }
+#track { width: 1fr; color: $foreground; text-style: bold; }
+#artist { width: 1fr; color: $muted; }
+#album { width: 1fr; color: $muted; }
+#controls { width: 9; color: $accent; }
+#elapsed, #duration { width: 5; color: $muted; }
+#time-divider { width: 3; color: $muted; }
+#device { width: 1fr; text-align: right; color: $muted; }
+#progress { height: 1; color: $accent; }
 #bottom-bar { height: 2; }
-#status { width: 1fr; height: 2; color: #9db8d8; text-wrap: wrap; }
-#version { width: 20; height: 1; text-align: right; color: #8c9bb0; }
+#status { width: 1fr; height: 2; color: $muted; text-wrap: wrap; }
+#version { width: 20; height: 1; text-align: right; color: $muted; }
 .compact #shell, .tiny #shell { padding: 0 1; }
 .compact #playlists-pane { width: 100%; padding-right: 0; }
 .compact #tracks-pane { display: none; }
 .compact .tracks-view #playlists-pane { display: none; }
 .compact .tracks-view #tracks-pane { display: block; }
 .compact #version, .tiny #version, .compact #album { display: none; }
-DeviceScreen, HelpScreen { align: center middle; background: #0c1118 90%; }
-.overlay { width: 80%; height: 80%; background: #0c1118; padding: 1; }
-.overlay-title { height: 1; color: #91b7ff; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
+DeviceScreen, HelpScreen { align: center top; background: transparent; }
+.overlay { width: 80%; height: 1fr; margin-bottom: 5; background: $background; padding: 1; }
+.overlay-title { height: 1; color: $accent; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
 #devices { height: 1fr; }
-#device-message { height: 2; color: #9aabbe; }
+#device-message { height: 2; color: $muted; }
 #help-scroll { height: 1fr; }
 #help-text { height: auto; }
-.tiny .overlay { width: 100%; height: 100%; padding: 0 1; }
+.tiny .overlay { width: 100%; padding: 0 1; }
+
+CatalogScreen { align: center top; background: transparent; }
+.catalog-overlay { width: 100%; height: 1fr; margin: 0 0 5 0; padding: 1 3 0 3; background: $background; }
+#search-input { height: 1; min-height: 1; border: none; padding: 0; background: $panel; color: $foreground; }
+#search-input:focus { border: none; background: $panel; }
+#catalog-title { color: $accent; }
+#catalog-metadata, #catalog-message, #catalog-hint { height: 1; color: $muted; text-wrap: nowrap; text-overflow: ellipsis; }
+#catalog-results { height: 1fr; min-height: 2; }
+.compact .catalog-overlay, .tiny .catalog-overlay { padding: 0 1; }

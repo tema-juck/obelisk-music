@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from rich.style import Style
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -11,8 +12,8 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import DataTable
 
-from .models import Playlist, PlaylistEntry
-from .widgets import NowPlaying, PlainText
+from .models import Album, Artist, CatalogItem, Playlist, PlaylistEntry, Track
+from .widgets import NowPlaying, PlainText, spotify_url
 
 
 class NavigationTable(DataTable):
@@ -59,6 +60,16 @@ class NavigationTable(DataTable):
 
 
 class LibraryBrowser(Vertical):
+    BINDINGS: ClassVar[list[tuple[str, str, str]]] = [
+        ("a", "album", "Album"),
+        ("A", "artist", "Artist"),
+    ]
+
+    class Inspect(Message):
+        def __init__(self, resource: Album | Artist) -> None:
+            super().__init__()
+            self.resource = resource
+
     class OpenPlaylist(Message):
         def __init__(self, playlist: Playlist) -> None:
             super().__init__()
@@ -110,6 +121,34 @@ class LibraryBrowser(Vertical):
             self.set_class(self.active_pane == "tracks", "tracks-view")
             if changed:
                 self.call_after_refresh(self.render_tables)
+            self.post_message(self.PaneChanged(self.active_pane))
+
+    class PaneChanged(Message):
+        def __init__(self, pane: str) -> None:
+            super().__init__()
+            self.pane = pane
+
+    def action_album(self) -> None:
+        self._inspect(False)
+
+    def action_artist(self) -> None:
+        self._inspect(True)
+
+    def _inspect(self, artist: bool) -> None:
+        table = self.query_one("#tracks", NavigationTable)
+        if self.app.focused is not table or table.cursor_row >= len(self.tracks):
+            return
+        entry = self.tracks[table.cursor_row][1]
+        item = entry.item if entry else None
+        resource = (
+            (item.artists[0] if item.artists else None)
+            if item and artist
+            else (item.album if item else None)
+        )
+        if resource and resource.id:
+            self.post_message(self.Inspect(resource))
+        else:
+            self.message("Spotify did not provide this item's catalog details")
 
     def message(self, text: str) -> None:
         self.query_one("#library-message", PlainText).update(text)
@@ -274,3 +313,45 @@ class LibraryBrowser(Vertical):
                 self.message(
                     "This item is unavailable, local, or unsupported; choose another"
                 )
+
+
+class CatalogTable(NavigationTable):
+    """One row renderer for search, album tracks and artist albums."""
+
+    def show_items(
+        self,
+        entries: list[tuple[int, CatalogItem]],
+        more: bool,
+        playing_uri: str | None,
+    ) -> None:
+        width = max(20, self.size.width)
+        title_width = max(7, (width - 12) * 3 // 5)
+        columns = [
+            ("", 2),
+            ("Title", title_width),
+            ("Artist / Type", width - 12 - title_width),
+            ("Time", 10),
+        ]
+        rows = []
+        for position, item in entries:
+            name = item.name if item and item.name else "Unavailable item"
+            marker, detail, extra = "", "", ""
+            if isinstance(item, Track):
+                marker = "♫" if item.uri and item.uri == playing_uri else ""
+                name = name if item.playable else "× " + name
+                detail = ", ".join(a.name for a in item.artists)
+                extra = NowPlaying._clock(item.duration_ms)
+            elif isinstance(item, Album):
+                detail = ", ".join(a.name for a in item.artists) or "Album"
+                extra = item.release_date[:4]
+            elif isinstance(item, Artist):
+                detail = "Artist"
+            rows.append((str(position), [marker, name, detail, extra]))
+        if more:
+            rows.append(("more", ["", "Load more…", "", ""]))
+        self.fill(columns, rows)
+        for position, item in entries:
+            if item and (url := spotify_url(item)):
+                title = self.get_cell(str(position), "1")
+                title.stylize(Style(link=url))
+                self.update_cell(str(position), "1", title)

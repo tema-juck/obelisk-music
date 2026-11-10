@@ -21,8 +21,8 @@ from .auth import AuthError
 from .browser import LibraryBrowser
 from .config import Settings, config_path, environment_settings
 from .library import SpotifyLibrary
-from .models import Device
-from .screens import DeviceScreen, HelpScreen
+from .models import Album, Artist, Device, Track
+from .screens import CatalogScreen, DeviceScreen, HelpScreen
 from .session import SpotifySession
 from .spotify import SpotifyClient, SpotifyError
 from .widgets import FeedbackBar, NowPlaying, PlainText
@@ -45,6 +45,7 @@ class ObeliskApp(App):
         ("escape", "back", "Back"),
         ("d", "devices", "Devices"),
         ("question_mark", "help", "Help"),
+        ("slash", "search", "Search"),
     ]
 
     def __init__(
@@ -66,6 +67,31 @@ class ObeliskApp(App):
                 background="#0c1118",
                 surface="#0c1118",
                 panel="#172231",
+                variables={
+                    "muted": "#9aabbe",
+                    "selection": "#294566",
+                    "on-selection": "#edf4ff",
+                },
+            )
+        )
+        self.register_theme(
+            Theme(
+                name="mono",
+                primary="#eeeeee",
+                accent="#eeeeee",
+                foreground="#dddddd",
+                background="#101010",
+                surface="#101010",
+                panel="#242424",
+                secondary="#eeeeee",
+                success="#eeeeee",
+                warning="#eeeeee",
+                error="#eeeeee",
+                variables={
+                    "muted": "#aaaaaa",
+                    "selection": "#383838",
+                    "on-selection": "#ffffff",
+                },
             )
         )
         self.theme = self.settings.appearance.theme
@@ -262,6 +288,12 @@ class ObeliskApp(App):
                 self.screen_stack[0].query_one(LibraryBrowser).show_playing(
                     playback.item.uri if playback.item else None
                 )
+                for screen in self.screen_stack[1:]:
+                    if isinstance(screen, CatalogScreen):
+                        screen.playing_uri = (
+                            playback.item.uri if playback.item else None
+                        )
+                        screen.show_items(screen.entries, screen.more)
                 self._connection("CONNECTED" if playback.device else "NO DEVICE")
             except (AuthError, SpotifyError, httpx.HTTPError) as exc:
                 if revision == self._revision:
@@ -295,6 +327,11 @@ class ObeliskApp(App):
             )
             if command == "transfer":
                 self.target_device_id = str(args[0])
+            if command in ("pause", "play"):
+                self.is_playing = command == "play"
+                self.screen_stack[0].query_one(NowPlaying).set_playing(self.is_playing)
+            elif command != "transfer":
+                self.screen_stack[0].query_one(NowPlaying).set_playing(False)
             self.status("Playback command sent", command=True)
         except (AuthError, SpotifyError, httpx.HTTPError) as exc:
             self._report_error(exc, command=True)
@@ -436,6 +473,111 @@ class ObeliskApp(App):
             ),
             self._device_selected,
         )
+
+    def action_search(self) -> None:
+        self._open_catalog(None)
+
+    def _open_catalog(self, resource: Album | Artist | None) -> None:
+        if not self.session.authorized:
+            self.status("Press l to authorize Spotify before searching", command=True)
+            return
+        screen = CatalogScreen(resource, vim_keys=self.settings.interface.vim_keys)
+        screen.playing_uri = self.screen_stack[0].query_one(NowPlaying).playing_uri
+        if isinstance(self.screen, CatalogScreen):
+            self.screen.invalidate()
+        self.push_screen(screen)
+
+    def on_library_browser_inspect(self, event: LibraryBrowser.Inspect) -> None:
+        self._open_catalog(event.resource)
+
+    def on_library_browser_pane_changed(
+        self, event: LibraryBrowser.PaneChanged
+    ) -> None:
+        if self.screen_stack:
+            self.screen_stack[0].query_one(FeedbackBar).set_context(event.pane)
+
+    def on_catalog_screen_control(self, event: CatalogScreen.Control) -> None:
+        if event.action in {
+            "toggle",
+            "next_track",
+            "previous_track",
+            "devices",
+            "help",
+            "quit",
+            "search",
+        }:
+            getattr(self, "action_" + event.action)()
+
+    def on_catalog_screen_open(self, event: CatalogScreen.Open) -> None:
+        if isinstance(event.resource, (Album, Artist)):
+            self._open_catalog(event.resource)
+        elif isinstance(event.resource, Track) and event.resource.playable:
+            if event.album and event.album.id:
+                self._start_command("play_album", event.album.id, event.position)
+            else:
+                self._start_command("play_track", event.resource.uri)
+
+    def on_catalog_screen_load(self, event: CatalogScreen.Load) -> None:
+        overlay = event.overlay
+        if overlay.is_mounted and overlay.revision == event.revision:
+            overlay.read_worker = overlay.run_worker(
+                self._load_catalog(overlay, event.revision, event.reset),
+                group="catalog",
+                exclusive=True,
+            )
+
+    async def _load_catalog(
+        self, overlay: CatalogScreen, revision: int, reset: bool
+    ) -> None:
+        key = overlay.key
+        if reset:
+            self.library.clear_catalog(key)
+        generation = self.library.revision
+
+        def current() -> bool:
+            return (
+                overlay.is_mounted
+                and overlay in self.screen_stack
+                and overlay.revision == revision
+                and generation == self.library.revision
+            )
+
+        try:
+            if overlay.mode != "search":
+                resource = await self.library.load_metadata(overlay.mode, key[1])
+                if not current():
+                    return
+                overlay.resource = resource
+                overlay.draw_metadata()
+            collection = self.library.catalog.get(key)
+            # Cached pages are reused when reopening a view. Only Load more advances.
+            if reset or collection is None or not collection.pages or overlay.entries:
+                collection = await self.library.load_catalog(key)
+            if not current():
+                return
+            more = collection.next_offset is not None and (
+                overlay.mode != "search" or collection.next_offset <= 1000
+            )
+            overlay.show_items(collection.entries, more)
+            overlay.message(
+                f"{len(collection.entries)} results · Enter open/play · r refresh"
+                if collection.entries
+                else "No results available · Try another search or Esc back"
+            )
+        except (AuthError, SpotifyError, httpx.HTTPError) as exc:
+            if not current():
+                return
+            if isinstance(exc, SpotifyError) and exc.status_code in (403, 404):
+                overlay.message(
+                    f"Unavailable or restricted by Spotify ({exc.status_code}) · Esc back · r retry"
+                )
+            elif isinstance(exc, AuthError):
+                overlay.message("Session unavailable · Esc then l to authorize Spotify")
+                self._report_error(exc)
+            elif isinstance(exc, SpotifyError) and exc.status_code == 429:
+                overlay.message(f"{exc} · r retries after cooldown")
+            else:
+                overlay.message("Could not load Spotify catalog · r retry · Esc back")
 
     def on_device_screen_load(self, event: DeviceScreen.Load) -> None:
         if event.overlay.is_mounted and self.screen is event.overlay:

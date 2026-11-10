@@ -24,7 +24,7 @@ client_id = "" # Or set SPOTIFY_CLIENT_ID. Empty means login is not configured.
 refresh_interval = 8 # Playback polling in seconds: integer from 1 to 3600.
 
 [appearance]
-theme = "midnight" # The currently supported Obelisk palette.
+theme = "midnight" # midnight or mono. Restart Obelisk after changing themes.
 
 [interface]
 vim_keys = true # Enable j/k in browsing, devices, and help; arrows always work.
@@ -52,7 +52,7 @@ class SpotifySettings(Section):
 
 
 class AppearanceSettings(Section):
-    theme: Literal["midnight"] = "midnight"
+    theme: Literal["midnight", "mono"] = "midnight"
 
 
 class InterfaceSettings(Section):

@@ -248,7 +248,11 @@ def test_layout_and_metadata_remain_visible_and_plain(monkeypatch, size):
             await app.refresh_player()
             await pilot.pause()
             assert content(app, "#track") == "[red]Title[/red]"
-            assert content(app, "#artist") == "[bold]Artist[/bold]"
+            assert content(app, "#artist") == (
+                "[bold]Artist[/bold] · [i]Album[/i]"
+                if size[0] < 70
+                else "[bold]Artist[/bold]"
+            )
             assert content(app, "#album") == "[i]Album[/i]"
             assert content(app, "#device") == "[red]Desktop[/red]"
             for selector in [

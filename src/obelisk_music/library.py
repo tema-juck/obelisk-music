@@ -3,8 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
-from .models import Album, Artist, Page, Playlist, PlaylistEntry
-from .spotify import CatalogItem, SpotifyClient
+from .models import Album, Artist, CatalogItem, Page, Playlist, PlaylistEntry
+from .spotify import SpotifyClient
 
 T = TypeVar("T")
 
@@ -41,6 +41,7 @@ class SpotifyLibrary:
         self.tracks: dict[str, Collection[PlaylistEntry | None]] = {}
         self.catalog: dict[tuple[str, ...], Collection[CatalogItem]] = {}
         self.metadata: dict[tuple[str, str], Album | Artist] = {}
+        self._catalog_reads: dict[tuple[str, ...], object] = {}
 
     def clear(self) -> None:
         self.revision += 1
@@ -48,12 +49,22 @@ class SpotifyLibrary:
         self.tracks.clear()
         self.catalog.clear()
         self.metadata.clear()
+        self._catalog_reads.clear()
+
+    def clear_catalog(self, key: tuple[str, ...]) -> None:
+        self.catalog.pop(key, None)
+        self._catalog_reads.pop(key, None)
+        mode, identifier, *_ = key
+        if mode != "search":
+            self.metadata.pop((mode, identifier), None)
+            self._catalog_reads.pop(("metadata", mode, identifier), None)
 
     async def load_catalog(self, key: tuple[str, ...]) -> Collection[CatalogItem]:
         collection = self.catalog.setdefault(key, Collection())
         revision, offset = self.revision, collection.next_offset
         if offset is None:
             return collection
+        token = self._catalog_reads[key] = object()
         mode, identifier, *category = key
         if mode == "search":
             if offset > 1000:
@@ -65,7 +76,7 @@ class SpotifyLibrary:
             page = await self.spotify.artist_albums(identifier, offset)
         else:
             raise ValueError("Unknown catalog view")
-        if revision == self.revision:
+        if revision == self.revision and self._catalog_reads.get(key) is token:
             collection.pages[offset] = page
         return collection
 
@@ -73,8 +84,10 @@ class SpotifyLibrary:
         key, revision = (mode, identifier), self.revision
         if key in self.metadata:
             return self.metadata[key]
+        read_key = ("metadata", mode, identifier)
+        token = self._catalog_reads[read_key] = object()
         resource = await getattr(self.spotify, mode)(identifier)
-        if revision == self.revision:
+        if revision == self.revision and self._catalog_reads.get(read_key) is token:
             self.metadata[key] = resource
         return resource
 

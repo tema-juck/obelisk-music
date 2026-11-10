@@ -6,7 +6,7 @@ import asyncio
 import math
 import time
 from email.utils import parsedate_to_datetime
-from typing import Any, Literal, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import quote
 
 import httpx
@@ -16,6 +16,8 @@ from .auth import AuthError
 from .models import (
     Album,
     Artist,
+    CatalogItem,
+    CatalogKind,
     Device,
     Page,
     Playback,
@@ -26,8 +28,6 @@ from .models import (
 from .session import SpotifySession
 
 BASE = "https://api.spotify.com/v1"
-CatalogKind = Literal["track", "album", "artist"]
-CatalogItem = Track | Album | Artist | None
 T = TypeVar("T")
 
 
@@ -235,9 +235,12 @@ class SpotifyClient:
             raise ValueError("A catalog ID is required")
         payload = await self.request("GET", f"/{kind}/{quote(identifier, safe='')}")
         try:
-            return TypeAdapter(model).validate_python(payload)
+            resource = TypeAdapter(model).validate_python(payload)
         except ValidationError:
             raise SpotifyError("Spotify returned invalid catalog metadata") from None
+        if resource.id != identifier:
+            raise SpotifyError("Spotify returned an unexpected catalog ID")
+        return resource
 
     async def album_tracks(
         self, identifier: str, offset: int = 0

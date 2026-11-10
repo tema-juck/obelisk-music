@@ -236,3 +236,83 @@ def test_catalog_playback_has_no_fallback_or_ambiguous_network_retry(
 )
 def test_unavailable_catalog_tracks_cannot_be_played(data):
     assert not Track.model_validate({"uri": "spotify:track:one", **data}).playable
+
+
+@pytest.mark.parametrize("metadata", [False, True])
+def test_older_same_key_read_cannot_overwrite_refreshed_cache(metadata):
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+        calls = 0
+
+        async def delayed(*args):
+            nonlocal calls
+            calls += 1
+            name = "Old" if calls == 1 else "New"
+            if calls == 1:
+                started.set()
+                await release.wait()
+            return (
+                Album(id="one", name=name)
+                if metadata
+                else Page[Track | None](
+                    offset=0, limit=10, total=1, items=[Track(name=name)]
+                )
+            )
+
+        api = Mock(
+            album=AsyncMock(side_effect=delayed), search=AsyncMock(side_effect=delayed)
+        )
+        library = SpotifyLibrary(api)
+        key = ("album", "one") if metadata else ("search", "query", "track")
+
+        async def load():
+            return (
+                await library.load_metadata("album", "one")
+                if metadata
+                else await library.load_catalog(key)
+            )
+
+        old = asyncio.create_task(load())
+        await started.wait()
+        library.clear_catalog(key)
+        await load()
+        release.set()
+        await old
+        actual = (
+            library.metadata[("album", "one")].name
+            if metadata
+            else library.catalog[key].entries[0][1].name
+        )
+        assert actual == "New"
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "query,offset",
+    [("", 0), ("   ", 0), ("x" * 257, 0), ("query", -1), ("query", 1001)],
+)
+def test_search_rejects_invalid_queries_and_offsets_without_network(query, offset):
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: pytest.fail("Unexpected request"))
+        ) as http:
+            with pytest.raises(ValueError):
+                await client(http).search(query, offset=offset)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{"name": "No ID"}, {"id": "different"}, {"id": "one", "total_tracks": -1}],
+)
+def test_album_metadata_requires_the_requested_resource_identity(payload):
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+        ) as http:
+            with pytest.raises(SpotifyError):
+                await client(http).album("one")
+
+    asyncio.run(run())
