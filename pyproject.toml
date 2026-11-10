@@ -1,6 +1,6 @@
 [project]
 name = "obelisk-music"
-version = "0.2.0a3"
+version = "0.2.0a4"
 description = "Keyboard-first Spotify Connect terminal controller"
 readme = "README.md"
 requires-python = ">=3.11"

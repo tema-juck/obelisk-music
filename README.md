@@ -293,10 +293,10 @@ those results are available only after the workflow runs on GitHub.
 
 `pyproject.toml` is the application version authority. Runtime `__version__`, the
 TUI footer, and `obelisk --version` read installed package metadata. PEP 440
-`0.2.0a3` corresponds to tag `v0.2.0-alpha.3`; beta and rc tags similarly map to
+`0.2.0a4` corresponds to tag `v0.2.0-alpha.4`; beta and rc tags similarly map to
 `bN` and `rcN`. Mismatched, malformed, dev, or local-version tags are rejected.
 
-The next release is **v0.2.0-alpha.3**, not yet published. Before creating a tag,
+The next release is **v0.2.0-alpha.4**, not yet published. Before creating a tag,
 update `[project].version`, run `uv lock`, then `uv sync --frozen --dev --group release`.
 Commit `pyproject.toml` and the regenerated `uv.lock` together, and require green CI
 on the exact main commit that will be tagged. Synchronizing refreshes installed
@@ -309,14 +309,14 @@ the local equivalent is:
 ```bash
 export UV_PYTHON=3.13.18
 uv sync --frozen --dev --group release
-uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.3
+uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.4
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest -q
 uv build
-uv run python scripts/smoke_wheel.py dist/obelisk_music-0.2.0a3-py3-none-any.whl
+uv run python scripts/smoke_wheel.py dist/obelisk_music-0.2.0a4-py3-none-any.whl
 # Choose the native target from the platform table; other targets are refused.
-uv run python scripts/build_binary.py --tag v0.2.0-alpha.3 --target darwin-arm64
+uv run python scripts/build_binary.py --tag v0.2.0-alpha.4 --target darwin-arm64
 ```
 
 The binary smoke copies `obelisk` outside the checkout, clears Spotify/Python
@@ -331,8 +331,8 @@ across changing runner images, SDKs, or ad-hoc signatures is not guaranteed.
 After review and merge, require green CI on the reviewed main commit. **Only
 after explicit tag/publication approval**, run the following. The subshell stops
 on any failure, and the tag is pinned to the inspected commit. Keep the existing
-alpha.1 and alpha.2 tags unchanged. Creating/pushing alpha.3 starts the release
-workflow and, if all gates pass, publishes a prerelease.
+alpha.1, alpha.2, and alpha.3 tags unchanged. Creating/pushing alpha.4 starts the
+release workflow and, if all gates pass, publishes a prerelease.
 
 ```bash
 (
@@ -344,17 +344,17 @@ workflow and, if all gates pass, publishes a prerelease.
   # Confirm CI is green for this exact release_commit before continuing.
   uv sync --frozen --dev --group release
   uv run obelisk --version
-  uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.3
-  git tag -a v0.2.0-alpha.3 "$release_commit" -m "Obelisk Music v0.2.0-alpha.3"
-  git push origin refs/tags/v0.2.0-alpha.3
+  uv run python scripts/release.py verify-tag --tag v0.2.0-alpha.4
+  git tag -a v0.2.0-alpha.4 "$release_commit" -m "Obelisk Music v0.2.0-alpha.4"
+  git push origin refs/tags/v0.2.0-alpha.4
 )
 ```
 
-After publication, the installer can select `--version v0.2.0-alpha.3` (or
-`--prerelease`). It constructs `obelisk-v0.2.0-alpha.3-{target}.tar.gz` names from
+After publication, the installer can select `--version v0.2.0-alpha.4` (or
+`--prerelease`). It constructs `obelisk-v0.2.0-alpha.4-{target}.tar.gz` names from
 the selected tag and verifies `SHA256SUMS`; there is no installer version constant
-to update. `obelisk --version` prints the PEP 440 spelling `obelisk 0.2.0a3`.
-Do not advertise alpha.3 downloads until the complete release is published.
+to update. `obelisk --version` prints the PEP 440 spelling `obelisk 0.2.0a4`.
+Do not advertise alpha.4 downloads until the complete release is published.
 
 The tag-only release workflow first runs quality/wheel checks, then all three
 native regression/build/smoke jobs with read-only repository permissions. Only
@@ -392,16 +392,36 @@ The version check correctly failed before native builds or publication; that run
 produced no artifacts. Keep the annotated alpha.2 tag object
 `7d1ac7f99de7a6af585f1821a1820a150c261955` unchanged.
 
-Prepare a new commit with `0.2.0a3` and a new `v0.2.0-alpha.3` tag using the
-procedure above. Do not delete, move, recreate, or reuse alpha.2. A rerun of the
-old workflow still reads the old tagged commit, even after this fix is merged
-into main. Preserve the strict tag/version guard.
+This attempt was followed by alpha.3, described below. Prepare alpha.4 with
+`0.2.0a4` using the procedure above. Do not delete, move, recreate, or reuse alpha.2.
+A rerun of the old workflow still reads the old tagged commit, even after this
+fix is merged into main. Preserve the strict tag/version guard.
+
+### Failed alpha.3 attempt and alpha.4 preparation
+
+The [alpha.3 release run 42725312503](https://github.com/tema-juck/obelisk-music/actions/runs/42725312503)
+used commit `9a0525119336f05457c2a35da4d86d257314aed6`. Its `0.2.0a3` metadata
+passed tag validation, but pytest reported **314 passed, 1 failed** because
+ShellCheck SC2015 flagged the installer/uninstaller's mixed conditional chains.
+Native builds and publication were skipped; this run produced no artifacts.
+
+Commit `31cb52e` replaced those guards with explicit POSIX conditionals, preserving
+symlink and receipt checks. It is included in main commit
+`4a866eb2a274dac911b2b4540140da7942656794`, whose
+[Ubuntu/macOS Python 3.13/3.14 CI run](https://github.com/tema-juck/obelisk-music/actions/runs/42727870548)
+passed. Alpha.4 is prepared as `0.2.0a4`; new release CI and all three native
+build/smoke jobs must still pass before it can be published.
+
+Keep the alpha.3 tag object `143bf4a1206ab2876482e0f1252fe84ead3c92ee` and its
+original commit unchanged. Rerunning alpha.3 uses the old scripts even after the
+fix is merged into main. Use a new reviewed alpha.4 commit and tag after approval;
+do not delete, move, recreate, or reuse alpha.3.
 
 ### Recover the first `v0.2.0-alpha.1` publication
 
 Historical recovery instructions: alpha.1 was subsequently published. The commands
 below require the fixed publisher snapshot `cc4fcbd` with metadata `0.2.0a1`.
-The current alpha.3 checkout intentionally rejects alpha.1 archives/tags; do not
+The current alpha.4 checkout intentionally rejects alpha.1 archives/tags; do not
 use it for this historical procedure or republish an existing release.
 
 The original [release run 42706661576](https://github.com/tema-juck/obelisk-music/actions/runs/42706661576)
