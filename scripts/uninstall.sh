@@ -33,8 +33,9 @@ if [ ! -e "$binary" ] && [ ! -L "$binary" ] && [ ! -e "$receipt" ] && [ ! -L "$r
     printf '%s\n' 'No managed Obelisk Music installation found.'
     exit 0
 fi
-[ -f "$binary" ] && [ ! -L "$binary" ] && [ -f "$receipt" ] && [ ! -L "$receipt" ] \
-    || die "Refusing unmanaged files at $binary; nothing removed"
+if [ ! -f "$binary" ] || [ -L "$binary" ] || [ ! -f "$receipt" ] || [ -L "$receipt" ]; then
+    die "Refusing unmanaged files at $binary; nothing removed"
+fi
 if command -v sha256sum >/dev/null 2>&1; then
     hash_output=$(sha256sum < "$binary") || die 'Cannot hash executable'
 elif command -v shasum >/dev/null 2>&1; then
