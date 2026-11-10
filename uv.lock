@@ -398,7 +398,7 @@ wheels = [
 
 [[package]]
 name = "obelisk-music"
-version = "0.2.0a4"
+version = "0.3.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
