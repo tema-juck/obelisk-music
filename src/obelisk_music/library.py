@@ -3,8 +3,8 @@
 from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
-from .models import Page, Playlist, PlaylistEntry
-from .spotify import SpotifyClient
+from .models import Album, Artist, Page, Playlist, PlaylistEntry
+from .spotify import CatalogItem, SpotifyClient
 
 T = TypeVar("T")
 
@@ -39,11 +39,44 @@ class SpotifyLibrary:
         self.revision = 0
         self.playlists: Collection[Playlist | None] = Collection()
         self.tracks: dict[str, Collection[PlaylistEntry | None]] = {}
+        self.catalog: dict[tuple[str, ...], Collection[CatalogItem]] = {}
+        self.metadata: dict[tuple[str, str], Album | Artist] = {}
 
     def clear(self) -> None:
         self.revision += 1
         self.playlists = Collection()
         self.tracks.clear()
+        self.catalog.clear()
+        self.metadata.clear()
+
+    async def load_catalog(self, key: tuple[str, ...]) -> Collection[CatalogItem]:
+        collection = self.catalog.setdefault(key, Collection())
+        revision, offset = self.revision, collection.next_offset
+        if offset is None:
+            return collection
+        mode, identifier, *category = key
+        if mode == "search":
+            if offset > 1000:
+                return collection
+            page = await self.spotify.search(identifier, category[0], offset)
+        elif mode == "album":
+            page = await self.spotify.album_tracks(identifier, offset)
+        elif mode == "artist":
+            page = await self.spotify.artist_albums(identifier, offset)
+        else:
+            raise ValueError("Unknown catalog view")
+        if revision == self.revision:
+            collection.pages[offset] = page
+        return collection
+
+    async def load_metadata(self, mode: str, identifier: str) -> Album | Artist:
+        key, revision = (mode, identifier), self.revision
+        if key in self.metadata:
+            return self.metadata[key]
+        resource = await getattr(self.spotify, mode)(identifier)
+        if revision == self.revision:
+            self.metadata[key] = resource
+        return resource
 
     def clear_tracks(self, playlist_id: str) -> None:
         self.revision += 1

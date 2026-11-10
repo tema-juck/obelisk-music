@@ -15,12 +15,21 @@ class Token(BaseModel):
 
 class Artist(BaseModel):
     model_config = ConfigDict(strict=True)
+    id: str | None = Field(default=None, min_length=1)
     name: str = ""
+    uri: str | None = None
 
 
 class Album(BaseModel):
     model_config = ConfigDict(strict=True)
+    id: str | None = Field(default=None, min_length=1)
     name: str = ""
+    uri: str | None = None
+    artists: list[Artist] = Field(default_factory=list)
+    release_date: str = ""
+    album_type: str = ""
+    total_tracks: int | None = Field(default=None, ge=0)
+    restrictions: dict[str, str] = Field(default_factory=dict)
 
 
 class Track(BaseModel):
@@ -34,6 +43,18 @@ class Track(BaseModel):
     type: str = "track"
     is_local: bool = False
     is_playable: bool | None = None
+    restrictions: dict[str, str] = Field(default_factory=dict)
+
+    @property
+    def playable(self) -> bool:
+        return bool(
+            self.uri
+            and self.uri.startswith("spotify:track:")
+            and self.type == "track"
+            and self.is_playable is not False
+            and not self.is_local
+            and not self.restrictions
+        )
 
 
 class Device(BaseModel):
@@ -87,15 +108,7 @@ class PlaylistEntry(BaseModel):
 
     @property
     def playable(self) -> bool:
-        return bool(
-            self.item
-            and self.item.uri
-            and self.item.uri.startswith("spotify:track:")
-            and self.item.type == "track"
-            and self.item.is_playable is not False
-            and not self.is_local
-            and not self.item.is_local
-        )
+        return bool(self.item and self.item.playable and not self.is_local)
 
 
 T = TypeVar("T")
