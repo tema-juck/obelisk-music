@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import tomllib
 from importlib.metadata import version
@@ -5,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from packaging.version import Version
 
 from obelisk_music import __version__, app
 
@@ -14,6 +16,25 @@ def test_version_has_one_authority():
         (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     )
     assert __version__ == version("obelisk-music") == project["project"]["version"]
+
+
+def test_current_package_metadata_passes_real_release_validator(tmp_path):
+    parsed = Version(__version__)
+    tag = f"v{parsed.base_version}"
+    if parsed.pre:
+        stage, number = parsed.pre
+        stage = {"a": "alpha", "b": "beta", "rc": "rc"}[stage]
+        tag += f"-{stage}.{number}"
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts/release.py"), "verify-tag", "--tag", tag],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    assert f"{tag} matches package version {__version__}" in result.stdout
 
 
 @pytest.mark.parametrize("option", ["--help", "--version"])

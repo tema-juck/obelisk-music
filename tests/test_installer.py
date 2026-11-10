@@ -178,6 +178,23 @@ def test_explicit_prerelease_and_version_selection(installer, args):
     assert PRE in result.stdout
 
 
+def test_alpha3_release_archive_selection(installer):
+    tag = "v0.2.0-alpha.3"
+    directory = installer.fixtures / tag
+    directory.mkdir()
+    for target in TARGETS:
+        make_archive(directory / f"obelisk-{tag}-{target}.tar.gz")
+    checksums(directory)
+    result = installer.run("--version", tag)
+    assert result.returncode == 0, result.stderr
+    assert tag in result.stdout
+    assert (
+        f"/releases/download/{tag}/obelisk-{tag}-linux-amd64.tar.gz"
+        in installer.requests.read_text()
+    )
+    assert not (installer.home / "executed").exists()
+
+
 def test_no_stable_release_has_actionable_error(installer):
     installer.env["TEST_NO_STABLE"] = "1"
     result = installer.run()
