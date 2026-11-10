@@ -178,7 +178,9 @@ def test_explicit_prerelease_and_version_selection(installer, args):
     assert PRE in result.stdout
 
 
-@pytest.mark.parametrize("tag", ["v0.2.0-alpha.3", "v0.2.0-alpha.4", "v0.3.0-alpha.1"])
+@pytest.mark.parametrize(
+    "tag", ["v0.2.0-alpha.3", "v0.2.0-alpha.4", "v0.3.0-alpha.1", "v0.3.0-alpha.2"]
+)
 def test_prerelease_archive_selection(installer, tag):
     directory = installer.fixtures / tag
     directory.mkdir()

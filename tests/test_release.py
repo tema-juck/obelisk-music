@@ -85,6 +85,7 @@ def make_archive(
         ("v0.2.0-alpha.3", "0.2.0a3", True),
         ("v0.2.0-alpha.4", "0.2.0a4", True),
         ("v0.3.0-alpha.1", "0.3.0a1", True),
+        ("v0.3.0-alpha.2", "0.3.0a2", True),
         ("v1.0.0-beta.2", "1.0.0b2", True),
         ("v1.0.0-rc.3", "1.0.0rc3", True),
         ("v1.0.0", "1.0.0", False),

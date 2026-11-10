@@ -1,9 +1,34 @@
 # Changelog
 
-## v0.3.0-alpha.1 — Unreleased
+## v0.3.0-alpha.2 — Unreleased
 
-Package version: `0.3.0a1`. This candidate contains the P2 music experience merged
-in `37d3de6`. The latest published baseline remains `v0.2.0-alpha.4`.
+Package version: `0.3.0a2`. Contains F1 playback hotfix `a189d5b`, merged into
+main at `589c06e`. The latest published baseline remains `v0.3.0-alpha.1`.
+
+### Fixed
+
+- F1 search playback starts the exact selected URI in its album context, avoiding
+  silent no-ops from URI-list playback on affected Spotify clients.
+- Search row positions and disc-relative track numbers are not used as album
+  offsets. Paginated search results retain the correct selected track.
+- Missing album metadata and rejected playback requests provide actionable guidance.
+
+### Preserved
+
+- F2/F3 album playback retains its original numeric item offsets.
+- Focus, selection, input shortcuts, device targeting, serialized mutations,
+  shared cooldowns, and protection against ambiguous mutation retries remain in use.
+- Package installation smoke now exercises F1 playback and Now Playing through
+  mocked HTTP. The hotfix adds 19 regression cases.
+
+Spotify may continue to subsequent album tracks after the selected track ends.
+See [alpha.2 release notes](docs/releases/v0.3.0-alpha.2.md) for verification,
+installation, and the remaining publication gates.
+
+## v0.3.0-alpha.1 — Published
+
+Package version: `0.3.0a1`. Contains the P2 music experience merged in `37d3de6`.
+The F1 playback hotfix is included starting with alpha.2.
 
 ### Added
 
@@ -18,9 +43,6 @@ in `37d3de6`. The latest published baseline remains `v0.2.0-alpha.4`.
 
 ### Improved
 
-- F1 search playback starts the exact selected URI in its album context, avoiding
-  silent no-ops from URI-list playback on affected Spotify clients. Album/artist
-  track views retain their original item offsets; rejected commands never fall back.
 - Responsive browsing and overlays at 120×35, 80×24, 60×20, and 40×12.
 - Superseded read cancellation and protection against late UI/cache responses.
 - Graceful worker shutdown, asynchronous catalog Quit, and search/login coordination.
@@ -35,10 +57,10 @@ in `37d3de6`. The latest published baseline remains `v0.2.0-alpha.4`.
 - Theme changes require a restart. Account/market restrictions still apply.
 - No direct audio streaming, downloading, lyrics, or queue editing is added.
 
-See [release notes](docs/releases/v0.3.0-alpha.1.md) for artifacts, verification,
-known limitations, and the remaining publication gates.
+See [alpha.1 release notes](docs/releases/v0.3.0-alpha.1.md) for its artifacts and
+limitations. The existing release and tag remain unchanged.
 
-## v0.2.0-alpha.4 — Published baseline
+## v0.2.0-alpha.4 — Published
 
 Reliable Spotify sessions, paginated playlists/tracks, Spotify Connect devices,
 keyboard navigation, standalone macOS/Linux executables, the shell installer,
