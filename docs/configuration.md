@@ -71,7 +71,7 @@ vim_keys = true
 | --- | --- |
 | `spotify.client_id` | String, up to 256 ASCII letters/digits/underscores/hyphens; surrounding whitespace is trimmed. Empty means login is not configured. Spotify checks the actual ID during authorization. |
 | `spotify.refresh_interval` | Integer from 1 to 3600 seconds; controls playback polling. Fractions, strings, and booleans are rejected. The default is 8 seconds; shorter intervals consume more API quota. Existing shared rate-limit cooldowns remain in force. |
-| `appearance.theme` | `"midnight"` retains the dark blue palette. The v0.3.0-alpha.1 candidate also supports `"mono"`, a neutral monochrome palette throughout browsing, search and overlays. Other names are errors. Theme changes require a restart. |
+| `appearance.theme` | `"midnight"` retains the dark blue palette. Releases since v0.3.0-alpha.1 also support `"mono"`, a neutral monochrome palette throughout browsing, search and overlays. Other names are errors. Theme changes require a restart. |
 | `interface.vim_keys` | TOML boolean. `false` disables `j`/`k` navigation in playlists, tracks, search/catalog results, devices, and help. Arrow keys remain available. Other playback/navigation shortcuts retain their behavior. |
 
 All sections and keys are optional; omitted settings use defaults. Unknown keys
