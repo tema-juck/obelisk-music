@@ -1,0 +1,27 @@
+.pane-title { height: 1; color: $muted; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
+NavigationTable { height: 1fr; background: $background; color: $foreground; border: none; scrollbar-size: 0 0; }
+NavigationTable > .datatable--header { background: $background; color: $muted; text-style: none; }
+NavigationTable > .datatable--cursor { background: $panel; color: $on-selection; text-style: bold; }
+NavigationTable > .datatable--hover { background: $panel; }
+NavigationTable:focus > .datatable--cursor { background: $selection; color: $on-selection; }
+.overlay-title { height: 1; color: $accent; text-style: bold; text-wrap: nowrap; text-overflow: ellipsis; }
+#radio-shell { width: 100%; height: 100%; padding: 1 3 0 3; background: $background; }
+#radio-genres, #radio-view, #radio-message, #radio-state, #radio-playing, #radio-metadata { height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
+#radio-genres, #radio-message, #radio-metadata { color: $muted; }
+#radio-state { color: $accent; }
+#radio-playing { text-style: bold; }
+#radio-filters { height: 1; }
+#radio-filters Input, .radio-dialog Input { height: 1; min-height: 1; border: none; padding: 0; background: $panel; color: $foreground; }
+#radio-search { width: 2fr; }
+#radio-country { width: 1fr; min-width: 8; }
+#radio-language, #radio-tag { width: 1fr; }
+#radio-stations { height: 1fr; min-height: 2; }
+#radio-hint { height: 2; color: $muted; }
+.compact #radio-shell, .tiny #radio-shell { padding: 0 1; }
+.radio-dialog { width: 90%; height: 7; padding: 1; background: $background; }
+CustomStationScreen { align: center middle; }
+#custom-message { height: 2; color: $muted; }
+#radio-filters Input { margin-right: 1; }
+HelpScreen { background: $background; }
+#help-scroll { height: 1fr; padding: 1; }
+#help-text { height: auto; }

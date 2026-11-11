@@ -1,0 +1,41 @@
+[project]
+name = "obelisk-radio"
+version = "0.1.0a1"
+description = "Independent keyboard-first Internet Radio player"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Obelisk Music contributors"}]
+dependencies = ["textual>=0.86", "httpx>=0.27", "pydantic>=2,<3"]
+
+[project.scripts]
+obelisk-radio = "obelisk_radio.app:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.8"]
+release = ["hatchling==1.33.0", "pyinstaller==6.22.3"]
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obelisk_radio"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/obelisk_radio/radio.tcss" = "obelisk_radio/radio.tcss"
+
+[tool.ruff]
+# Local lint settings make root and per-product invocations agree.
+src = ["src"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP", "C4", "PLW", "RUF012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["obelisk_radio"]

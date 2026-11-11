@@ -1,0 +1,23 @@
+{
+  "source_repository": "https://github.com/tema-juck/obelisk-player",
+  "source_commit": "27d88c2c2fc2b670443206f748d16abce0758b70",
+  "original_commits": [
+    "c5ff08d472a7cdf6d91b6fae897cbba1d6a7dd12",
+    "7b2bf66dba6630c7afc91b218c088dc448575dd8",
+    "f15273aebc9deec16627a2a776ba9cdb12839e42",
+    "ff64d9ba23bda79d238e97d21441928ff97cf4a8",
+    "5e46f1c82bdf34e4cc1d76c25de2545f9fd0a1ad",
+    "37c18bf986b09a3e0e5741a0dd28e28d043e5887",
+    "27d88c2c2fc2b670443206f748d16abce0758b70"
+  ],
+  "original_files_sha256": {
+    "src/obelisk_music/radio_audio.py": "c0989c6e844d2ebab99627304ca05f62ffab0782bbc03df1f9e93fb5c66573a5",
+    "src/obelisk_music/radio_http.py": "5950f6453857dc4002e63b7a139959e52505630a4c12870050c3d9f441399932",
+    "src/obelisk_music/radio_models.py": "4cb0cbfb6404def76361e488d918305d34fa40a3fa44b2b9083b9f1dac7c4e7c",
+    "src/obelisk_music/radio_directory.py": "b458fc208c43d917f6f72d66bc5468cc4d62b5e75dc67b228a6d4b40f031944a",
+    "src/obelisk_music/radio_store.py": "ae1a78ce3ff189e0e9add6a0598a3059f393bf9731f0bde2b343cbe93894caa4",
+    "src/obelisk_music/radio_controller.py": "661191b5c587bcd193c11754859c09ee08b67a276dd8501c0e06ef18ac68ea5e",
+    "src/obelisk_music/radio_ui.py": "051af86ae595554547a5ebdeaff8a12431ed4d4cc29e6838470af9cdb3069fa0"
+  },
+  "license": "MIT; original copyright notices retained"
+}
