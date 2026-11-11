@@ -17,7 +17,7 @@ Favorites/custom/selection/volume: `${XDG_DATA_HOME:-$HOME/.local/share}/obelisk
 Corrupt state is retained and saving disabled; repair or move it aside and restart.
 No automatic migration of Player configuration, credentials or experimental state.
 
-See ../../docs/monorepo.md for architecture, release namespaces, policy questions,
+See [the monorepo guide](../../docs/monorepo.md) for architecture, release namespaces, policy questions,
 and verification. Original MIT attribution and radio commit provenance are retained
 in LICENSE and PROVENANCE.json. mpv JSON IPC provides state, not PCM samples;
 future radio-only analysis requires the documented PCM output adapter and audio sink.

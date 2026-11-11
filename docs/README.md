@@ -1,4 +1,9 @@
-# Obelisk Player documentation
+# Obelisk documentation
+
+[Monorepo architecture and policy](monorepo.md) · [Independent Radio guide](../apps/radio/README.md)
+
+The guides below describe **Obelisk Player**. Radio has its own package, settings,
+commands and release hold; it is not part of the Player executable.
 
 **A keyboard-first terminal music player.**
 Control Spotify from your terminal with a fast, minimalist interface.

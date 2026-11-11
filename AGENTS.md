@@ -1,10 +1,22 @@
-# AGENTS.md — Obelisk Player
+# AGENTS.md — Obelisk monorepo
 
 ## Project Overview
 
-Obelisk Player is an open-source, keyboard-first Spotify terminal controller built with Python and Textual.
+One repository contains two independent applications:
 
-The goal is to create a fast, minimalist, visually polished terminal music experience inspired by Cliamp, without copying its source code or design assets.
+- Player stays at the root: distribution `obelisk-music`, namespace
+  `obelisk_music`, executable `obelisk`, existing Spotify Connect behavior.
+- Radio lives in `apps/radio`: distribution `obelisk-radio`, namespace
+  `obelisk_radio`, executable `obelisk-radio`, external mpv playback.
+
+Use separate lockfiles, environments, test roots and release workflows. This is
+not a uv workspace. Neither application may import, launch, authenticate for,
+control playback in, or share provider metadata with the other. Keep Player's
+published compatibility identifiers and configuration paths unchanged.
+
+The original seven radio commits remain on `feat/16-internet-radio`; provenance
+is recorded in `apps/radio/PROVENANCE.json`. Preserve MIT attribution and the
+proven engine. No combined application or source-switching UI is permitted.
 
 ## Tech Stack
 
@@ -20,7 +32,9 @@ The goal is to create a fast, minimalist, visually polished terminal music exper
 
 ## Architecture
 
-Keep UI, business logic, Spotify API communication, and authentication separate.
+Keep each application's UI, orchestration, provider I/O and persistence separate.
+Radio must not import keyring, Spotify modules or Player settings. Start Radio
+offline; make directory and playback requests only on user action.
 
 Follow these principles:
 
@@ -67,6 +81,10 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pytest -q
 uv run obelisk
+
+uv sync --directory apps/radio --frozen --dev --group release
+uv run --directory apps/radio pytest -q
+uv run --directory apps/radio obelisk-radio
 ```
 
 ## Project Roadmap
@@ -107,3 +125,13 @@ Use Conventional Commits:
 - chore:
 
 Avoid unrelated changes in the same commit.
+
+## Releases and policy
+
+Player retains v* tags and historical artifacts. Radio reserves radio-v* tags and
+obelisk-radio-* archives. Do not rename existing tags, versions or published assets.
+Radio's release workflow and publisher intentionally block publication/artifact
+upload pending a separate policy-reviewed change. Do not bypass that gate or
+claim legal compliance from packaging separation. See docs/monorepo.md for current
+policy questions, commands and compatibility guarantees. Audio analysis may only
+consume Radio audio; no visualizer or PCM output is enabled in this restructuring.
