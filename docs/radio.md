@@ -1,5 +1,7 @@
 # Internet radio (development branch)
 
+Implementation of [Issue #16](https://github.com/tema-juck/obelisk-player/issues/16).
+
 Radio plays public, direct MP3 and AAC/HE-AAC streams through your system audio.
 It needs **mpv**, but no Spotify account, Client ID, Premium subscription, or
 Spotify Desktop. Radio is independent of Spotify Connect. This feature is not

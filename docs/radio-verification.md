@@ -9,9 +9,9 @@ No tag, release, push, merge, or package-version change was made.
 
 | Check | Actual result |
 | --- | --- |
-| Python 3.13.18 full pytest | **491 passed**, 110.76 seconds |
-| Python 3.14.8 full pytest | **491 passed**, 110.75 seconds |
-| Ruff check and format check | Passed, 59 Python files formatted |
+| Python 3.13.18 full pytest | **492 passed**, 112.16 seconds |
+| Python 3.14.8 full pytest | **492 passed**, 113.66 seconds |
+| Ruff check and format check | Passed |
 | ShellCheck 0.11.0, install/uninstall | Passed |
 | Wheel and sdist builds | Passed, version `0.3.0a2` in both metadata files |
 | Clean wheel smoke, Python 3.13.18 | Passed outside checkout; Radio and Spotify mocks, CLI/config/resources |
@@ -21,14 +21,16 @@ No tag, release, push, merge, or package-version change was made.
 | UI static audit | Strict audit: zero findings |
 | UI layouts | Headless tests: midnight/mono, 120×35, 80×24, 60×20, 40×12 |
 
-The 416 original tests remain; **75 cases** were added (73 radio regressions and
+The 416 original tests remain; **76 cases** were added (74 radio regressions and
 two missing-radio-resource packaging cases). CI blocks network/keychain/browser
 access and uses fake HTTP, DNS and audio processes. Tests cover URL/redirect/DNS
 boundaries, station parsing, pagination, directory failures/cooldown, corrupt and
 symlinked state, process startup/IPC/volume/switching, missing mpv, bounded retries,
 startup cancellation, repeated cancellation during child acquisition/reaping,
 forced kill, ICY metadata, input scoping, stale reads, focus, custom/favorite flows,
-saved selection without autoplay, compact controls, and source isolation.
+saved selection without autoplay, compact controls, source isolation, and
+resuming interrupted Spotify library reads on return from radio. The latter
+regression was reproduced failing before its fix.
 
 Actual commands used the frozen lockfile and cached dependencies, including:
 
@@ -108,3 +110,18 @@ The current [Spotify Developer Policy](https://developer.spotify.com/policy)
 Mode separation does not resolve that policy. Code is prepared for review, with
 no claim that the combined product is approved for distribution. No release or
 issue mutation was performed.
+
+
+## Changed files
+
+- Runtime: `app.py`, `screens.py`, `obelisk.tcss`, and seven new `radio_` modules:
+  `radio_audio.py`, `radio_controller.py`, `radio_directory.py`, `radio_http.py`,
+  `radio_models.py`, `radio_store.py`, `radio_ui.py`, all under `src/obelisk_music/`.
+- Tests: `tests/conftest.py`, `tests/test_ci.py`, `tests/test_radio.py`,
+  `tests/test_radio_audio.py`, `tests/test_radio_ui.py`.
+- Packaging verification: `scripts/smoke_wheel.py`.
+- Documentation: `README.md`, `DESIGN.md`, `UX-CONTRACT.md`, `docs/README.md`,
+  `docs/installation.md`, `docs/radio.md`, and this verification record.
+
+No changes to package version, lockfile, installer behavior, existing release
+workflows, OAuth/session code, Spotify endpoints or Spotify models were required.
