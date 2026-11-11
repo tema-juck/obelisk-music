@@ -214,12 +214,14 @@ def publish(*args, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["verify-tag", "validate", "publish"])
+    parser.add_argument(
+        "command", choices=["verify-tag", "validate", "publish", "check-policy"]
+    )
     parser.add_argument("--tag", required=True)
     parser.add_argument("--commit")
     parser.add_argument("--directory", type=Path)
     args = parser.parse_args()
-    if args.command == "publish":
+    if args.command in ("publish", "check-policy"):
         publish()
     verify_tag(args.tag)
     if args.command == "verify-tag":

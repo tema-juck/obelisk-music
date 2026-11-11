@@ -271,3 +271,13 @@ def test_wheel_smoke_rejects_player_resources(tmp_path):
         archive.writestr("obelisk_music/auth.py", "not Radio")
     with pytest.raises(SystemExit, match="other product"):
         smoke.check_wheel(wheel)
+
+
+def test_policy_gate_blocks_tag_triggered_release_workflow(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(
+        sys, "argv", ["release.py", "check-policy", "--tag", "radio-v0.1.0-alpha.1"]
+    )
+    with pytest.raises(ValueError, match="disabled pending"):
+        release.main()

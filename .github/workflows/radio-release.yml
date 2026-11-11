@@ -21,7 +21,23 @@ env:
   RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
+  policy-review:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - name: Hold release artifacts pending policy review
+        run: uv run --no-project python scripts/release.py check-policy --tag "$RELEASE_TAG"
   quality:
+    needs: policy-review
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
@@ -46,7 +62,7 @@ jobs:
 
   native:
     needs: quality
-    name: Native ${{ matrix.target }}
+    name: Radio Native ${{ matrix.target }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
