@@ -190,10 +190,9 @@ class RadioController:
                     self.invalidate()
                     await self.backend.stop()
                     self.overlay = None
-                    self.app.source = "spotify"
                     if screen is self.app.screen:
                         self.app.pop_screen()
-                    self.app._start_refresh()
+                    self.app.resume_spotify()
                 elif action in ("stop", "toggle"):
                     if action == "stop" or self.backend.snapshot.status in (
                         RadioStatus.PLAYING,

@@ -68,11 +68,12 @@ class Directory:
         )
 
 
-def make_app(tmp_path, *, directory=None, theme="midnight"):
+def make_app(tmp_path, *, directory=None, theme="midnight", http=None):
     backend = Backend()
     app = ObeliskApp(
         settings=Settings.model_validate({"appearance": {"theme": theme}}),
-        http=httpx.AsyncClient(
+        http=http
+        or httpx.AsyncClient(
             transport=httpx.MockTransport(
                 lambda r: pytest.fail(f"Radio made a Spotify request: {r.url}")
             )
@@ -331,5 +332,59 @@ def test_remembers_browsing_selection_without_autoplay(tmp_path):
             await pilot.pause(0.1)
             assert second.screen.query_one(NavigationTable).cursor_row == 2
             assert not second_backend.active
+
+    asyncio.run(run())
+
+
+def test_return_to_spotify_resumes_interrupted_library_load(tmp_path):
+    from obelisk_music.browser import LibraryBrowser
+    from obelisk_music.models import Token
+
+    async def run():
+        started = asyncio.Event()
+        calls = []
+
+        async def handler(request):
+            if request.url.path == "/v1/me/player":
+                return httpx.Response(204)
+            assert request.url.path == "/v1/me/playlists"
+            calls.append(request)
+            if len(calls) == 1:
+                started.set()
+                await asyncio.Future()
+            return httpx.Response(
+                200,
+                json={
+                    "offset": 0,
+                    "limit": 50,
+                    "total": 1,
+                    "next": None,
+                    "items": [
+                        {
+                            "id": "resume",
+                            "name": "Resumed library",
+                            "owner": {"display_name": "Owner"},
+                            "items": {"total": 1},
+                        }
+                    ],
+                },
+            )
+
+        app, _backend = make_app(
+            tmp_path, http=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        )
+        async with app.run_test() as pilot:
+            app.session._install(
+                Token(access_token="mock-test-access", expires_in=3600)
+            )
+            app._start_library("playlists")
+            await asyncio.wait_for(started.wait(), 1)
+            await pilot.press("R")
+            await pilot.pause(0.1)
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            assert app.source == "spotify"
+            assert len(calls) == 2
+            assert app.screen.query_one(LibraryBrowser).playlists[0][1].id == "resume"
 
     asyncio.run(run())

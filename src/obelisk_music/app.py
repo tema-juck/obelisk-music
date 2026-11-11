@@ -116,6 +116,7 @@ class ObeliskApp(App):
         self.target_device_id: str | None = None
         self._library_worker: Worker | None = None
         self._library_key: tuple[str, str | None] | None = None
+        self._radio_library_key: tuple[str, str | None] | None = None
         self._library_revision = 0
         self.is_playing = False
         self.connection_state = "OFFLINE"
@@ -204,7 +205,7 @@ class ObeliskApp(App):
             )
             message = str(exc)
         elif isinstance(exc, httpx.HTTPError):
-            state, message = "OFFLINE", "Spotify connection failed; press R to retry"
+            state, message = "OFFLINE", "Spotify connection failed; press r to retry"
         elif isinstance(exc, OSError):
             state, message = (
                 "OFFLINE",
@@ -330,12 +331,25 @@ class ObeliskApp(App):
             )
             return
         self._invalidate_playback()
+        self._radio_library_key = (
+            self._library_key if self._active(self._library_worker) else None
+        )
         self._library_revision += 1
         if self._library_worker is not None:
             self._library_worker.cancel()
         self._library_key = None
         self.source = "radio"
         self.radio.open()
+
+    def resume_spotify(self) -> None:
+        self.source = "spotify"
+        self._start_refresh()
+        key, self._radio_library_key = self._radio_library_key, None
+        if self.session.authorized:
+            if key is None and not self.library.playlists.pages:
+                key = ("playlists", None)
+            if key is not None:
+                self._start_library(*key)
 
     def on_radio_screen_intent(self, event: RadioScreen.Intent) -> None:
         self.radio.intent(event)
