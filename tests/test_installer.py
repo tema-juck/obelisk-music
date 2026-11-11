@@ -88,14 +88,19 @@ if url.startswith(api):
         if os.environ.get("TEST_NO_STABLE"):
             sys.exit(22)
         tag = "v1.2.3"
-    elif url.endswith("?per_page=1"):
+    elif "?per_page=100&page=" in url:
         tag = "v0.2.0-alpha.1"
     else:
         assert url.startswith(api + "/tags/")
         tag = url.removeprefix(api + "/tags/")
     data = {"tag_name": tag, "draft": False, "prerelease": "-" in tag,
             "body": 'A quoted "tag_name": "v9.9.9" is untrusted text.'}
-    output.write_text(json.dumps([data] if "?" in url else data))
+    if "?" in url:
+        pre = dict(data, tag_name="v0.2.0-alpha.1", prerelease=True)
+        stable = dict(data, tag_name="v1.2.3", prerelease=False)
+        foreign = dict(data, tag_name="radio-v9.9.9", prerelease=False)
+        data = [foreign, pre] + ([] if os.environ.get("TEST_NO_STABLE") else [stable])
+    output.write_text(os.environ.get("TEST_RELEASE_JSON") or json.dumps(data))
 else:
     assert url.startswith(base), url
     tag, name = url.removeprefix(base).split("/")
@@ -488,4 +493,42 @@ def test_shellcheck_when_available():
         ],
         check=True,
         timeout=30,
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [{"tag_name": "radio-v9.9.9", "draft": False, "prerelease": False}],
+        [{"tag_name": STABLE, "draft": True, "prerelease": False}],
+        [{"body": '"tag_name":"v1.2.3"', "draft": False, "prerelease": False}],
+        [{"assets": [{"tag_name": STABLE}], "draft": False, "prerelease": False}],
+        '{"tag_name":"v1.2.3","draft":false,"prerelease":false',
+    ],
+)
+def test_release_selection_rejects_foreign_draft_nested_and_malformed_metadata(
+    installer, payload
+):
+    import json
+
+    installer.env["TEST_RELEASE_JSON"] = (
+        payload if isinstance(payload, str) else json.dumps(payload)
+    )
+    result = installer.run()
+    assert result.returncode != 0
+    assert not installer.binary.exists()
+    assert not list(installer.temporary.iterdir())
+
+
+def test_player_installer_never_touches_radio_executable(installer):
+    radio = installer.binary.parent / "obelisk-radio"
+    radio.parent.mkdir(parents=True)
+    radio.write_text("keep radio")
+    receipt = radio.parent / ".obelisk-radio-managed.sha256"
+    receipt.write_text("keep radio receipt")
+    assert installer.run().returncode == 0
+    assert installer.run(uninstall=True).returncode == 0
+    assert (
+        radio.read_text() == "keep radio"
+        and receipt.read_text() == "keep radio receipt"
     )
