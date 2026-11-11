@@ -1,0 +1,56 @@
+name: Radio CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: apps/radio
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.13", "3.14"]
+    env:
+      UV_FROZEN: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - name: Install dependencies
+        run: uv sync --frozen --dev --group release
+      - name: Lint
+        run: uv run ruff check src tests scripts packaging
+      - name: Check formatting
+        run: uv run ruff format --check src tests scripts packaging
+      - name: Test (network access disabled)
+        run: uv run pytest -q
+      - name: ShellCheck installers
+        run: |
+          if command -v shellcheck >/dev/null; then
+            shellcheck scripts/install.sh scripts/uninstall.sh
+          elif [ "$(uname)" != Darwin ]; then
+            exit 1
+          fi
+      - name: Build distributions
+        run: uv build --no-build-isolation
+      - name: Check wheel resources and clean installation
+        run: uv run python scripts/smoke_wheel.py dist/*.whl

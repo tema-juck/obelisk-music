@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from zipfile import ZipFile
@@ -32,6 +33,8 @@ RUNTIME_FILES = {
 
 def check_wheel(wheel: Path) -> None:
     with ZipFile(wheel) as archive:
+        if any("obelisk_radio/" in name for name in archive.namelist()):
+            raise SystemExit("Player wheel contains the other product")
         missing = RUNTIME_FILES - set(archive.namelist())
         if missing:
             raise SystemExit(
@@ -39,6 +42,15 @@ def check_wheel(wheel: Path) -> None:
             )
         if not archive.read("obelisk_music/obelisk.tcss").strip():
             raise SystemExit("Wheel stylesheet is empty")
+
+    sdist = wheel.with_name(wheel.name.split("-py3-none-any.whl")[0] + ".tar.gz")
+    if sdist.exists():
+        with tarfile.open(sdist) as source:
+            if any(
+                "obelisk_radio/" in name or "/apps/" in name
+                for name in source.getnames()
+            ):
+                raise SystemExit("Player sdist contains the other product")
 
 
 async def check_installed() -> None:

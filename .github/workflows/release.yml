@@ -1,4 +1,4 @@
-name: Release
+name: Player Release
 
 on:
   push:
@@ -34,8 +34,8 @@ jobs:
         run: uv sync --frozen --dev --group release
       - name: Verify tag against package metadata
         run: uv run python scripts/release.py verify-tag --tag "$RELEASE_TAG"
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
+      - run: uv run ruff check src tests scripts packaging
+      - run: uv run ruff format --check src tests scripts packaging
       - run: uv run pytest -q
       - run: uv build --no-build-isolation
       - run: uv run python scripts/smoke_wheel.py dist/*.whl

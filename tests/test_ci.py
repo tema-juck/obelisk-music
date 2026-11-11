@@ -63,3 +63,18 @@ def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing
     )
     assert result.returncode != 0
     assert f"Wheel is missing runtime files: obelisk_music/{missing}" in result.stderr
+
+
+def test_wheel_smoke_rejects_cross_product_resources(tmp_path):
+    wheel = tmp_path / "mixed.whl"
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr("obelisk_radio/app.py", "not Player")
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/smoke_wheel.py"), str(wheel)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0 and "other product" in result.stderr
