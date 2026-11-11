@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 
-from .radio_audio import AudioBackend, MpvBackend
+from .audio_pipeline import VisualizerBackend, VisualizerState
+from .radio_audio import AudioBackend
 from .radio_directory import RadioDirectory
 from .radio_http import RadioError, radio_http
 from .radio_models import RadioState, RadioStatus, Station
 from .radio_store import RadioStore
 from .radio_ui import RadioScreen
+from .visualizer import Visualizer
 
 
 class RadioController:
@@ -17,10 +19,15 @@ class RadioController:
         self, app, *, backend: AudioBackend | None = None, directory=None, store=None
     ):
         self.app = app
+        self.visualizer = VisualizerState(app.settings.visualizer)
         self.http = (
             None if backend is not None and directory is not None else radio_http()
         )
-        self.backend = backend if backend is not None else MpvBackend(self.http)
+        self.backend = (
+            backend
+            if backend is not None
+            else VisualizerBackend(self.http, self.visualizer)
+        )
         self.directory = (
             directory if directory is not None else RadioDirectory(self.http)
         )
@@ -36,6 +43,9 @@ class RadioController:
         self.backend.on_change = self._playback
 
     def _playback(self, snapshot) -> None:
+        self.visualizer.playing = snapshot.status == RadioStatus.PLAYING
+        if not self.visualizer.playing:
+            self.visualizer.frame = None
         if (
             self.overlay
             and self.overlay.is_mounted
@@ -178,7 +188,23 @@ class RadioController:
                     and selected != self.state.last
                 ):
                     await self._save(self.state.model_copy(update={"last": selected}))
-                if action == "quit":
+                if action in ("visualizer-toggle", "visualizer-cycle"):
+                    self.visualizer.change(cycle=action == "visualizer-cycle")
+                    screen.query_one(Visualizer).sync_mode()
+                    if (
+                        self.visualizer.active
+                        and not self.visualizer.pipeline
+                        and isinstance(self.backend, VisualizerBackend)
+                        and self.backend.snapshot.station
+                        and self.backend.snapshot.status
+                        in (
+                            RadioStatus.PLAYING,
+                            RadioStatus.BUFFERING,
+                            RadioStatus.RECONNECTING,
+                        )
+                    ):
+                        await self._play(self.backend.snapshot.station)
+                elif action == "quit":
                     await self.backend.stop()
                     self.app.exit()
                 elif action in ("stop", "toggle"):

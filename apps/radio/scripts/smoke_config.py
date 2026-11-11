@@ -55,4 +55,12 @@ def check_config(command: list[str], root: Path, env: dict[str, str]) -> None:
         success=False,
         overrides={"OBELISK_RADIO_THEME": "unsupported"},
     )
+    for mode in ("spectrum", "beat-pulse", "waveform", "off"):
+        path.write_text(
+            f'[visualizer]\nenabled=true\nmode="{mode}"\nfps=30\nsensitivity=1.0\n'
+        )
+        run("config", "validate")
+    for setting in ('mode="invalid"', "fps=61", "sensitivity=0.1", 'enabled="yes"'):
+        path.write_text(f"[visualizer]\n{setting}\n")
+        run("config", "validate", success=False)
     print("Installed configuration CLI smoke passed")

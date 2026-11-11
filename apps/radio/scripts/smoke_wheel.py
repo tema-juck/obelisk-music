@@ -14,6 +14,9 @@ from pathlib import Path
 from zipfile import ZipFile
 
 RUNTIME_FILES = {
+    "obelisk_radio/audio_analysis.py",
+    "obelisk_radio/audio_pipeline.py",
+    "obelisk_radio/visualizer.py",
     "obelisk_radio/radio_http.py",
     "obelisk_radio/radio_models.py",
     "obelisk_radio/radio_audio.py",
@@ -62,6 +65,7 @@ async def check_installed() -> None:
 
     import obelisk_radio
     from obelisk_radio.app import RadioApp, main
+    from obelisk_radio.audio_analysis import WINDOW, Analyzer
     from obelisk_radio.radio_ui import RadioScreen
 
     assert (
@@ -71,6 +75,7 @@ async def check_installed() -> None:
     )
     assert find_spec("obelisk_music") is None
     assert find_spec("keyring") is None
+    assert Analyzer().analyze(bytes(WINDOW * 4), 0).rms == 0
     assert files("obelisk_radio").joinpath("radio.tcss").read_text().strip()
     package = distribution("obelisk-radio")
     entry = next(e for e in package.entry_points if e.name == "obelisk-radio")
