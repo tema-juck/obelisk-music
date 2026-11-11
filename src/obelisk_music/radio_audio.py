@@ -94,6 +94,17 @@ def mpv_environment() -> dict[str, str]:
     return env
 
 
+async def _finish(task: asyncio.Task):
+    """Acquire/reap children even if shutdown and Stop both request cancellation."""
+    interrupted = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            interrupted = True
+    return task.result(), interrupted
+
+
 class MpvBackend:
     def __init__(
         self,
@@ -236,11 +247,9 @@ class MpvBackend:
                             env=mpv_environment(),
                         )
                     )
-                    try:
-                        process = await asyncio.shield(creation)
-                    except asyncio.CancelledError:
-                        process = await creation
-                        raise
+                    process, interrupted = await _finish(creation)
+                    if interrupted:
+                        raise asyncio.CancelledError
                     await asyncio.wait_for(self._connect_ipc(socket, process), 5)
                     reader, control = self._control_pair
                     self._control = control
@@ -265,24 +274,32 @@ class MpvBackend:
                     raise EOFError("Radio stream or player ended")
                 finally:
                     self._control = None
-                    for task in tasks:
-                        task.cancel()
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                    if control is not None:
-                        control.close()
-                    if process is not None:
-                        if process.stdin is not None:
-                            process.stdin.close()
-                        if process.returncode is None:
-                            try:
-                                process.terminate()
-                            except ProcessLookupError:
-                                pass
-                            try:
-                                await asyncio.wait_for(process.wait(), 2)
-                            except TimeoutError:
-                                process.kill()
-                                await asyncio.wait_for(process.wait(), 2)
+                    cleanup = asyncio.create_task(
+                        self._cleanup(process, control, tasks)
+                    )
+                    _, interrupted = await _finish(cleanup)
+                    if interrupted:
+                        raise asyncio.CancelledError
+
+    async def _cleanup(self, process, control, tasks) -> None:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        if control is not None:
+            control.close()
+        if process is not None:
+            if process.stdin is not None:
+                process.stdin.close()
+            if process.returncode is None:
+                try:
+                    process.terminate()
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.wait_for(process.wait(), 2)
+                except TimeoutError:
+                    process.kill()
+                    await asyncio.wait_for(process.wait(), 2)
 
     async def _connect_ipc(self, socket: Path, process) -> None:
         while process.returncode is None:

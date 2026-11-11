@@ -183,6 +183,8 @@ def test_cancellation_during_process_creation_reaps_child():
         task = asyncio.create_task(harness.backend.play(station()))
         await asyncio.wait_for(spawning.wait(), 1)
         task.cancel()
+        await asyncio.sleep(0)
+        task.cancel()
         release.set()
         await asyncio.gather(task, return_exceptions=True)
         assert process.terminated and process.stdin.closed
@@ -381,3 +383,20 @@ def test_frozen_external_mpv_environment_keeps_system_libraries(monkeypatch):
     assert "SPOTIFY_ACCESS_TOKEN" not in env
     monkeypatch.delenv("LD_LIBRARY_PATH_ORIG")
     assert "LD_LIBRARY_PATH" not in mpv_environment()
+
+
+def test_repeated_cancellation_cannot_interrupt_process_reaping():
+    async def run():
+        harness = Harness()
+        task = asyncio.create_task(harness.backend.play(station()))
+        await harness.until_playing()
+        process = harness.processes[0]
+        process.ignore_term = True
+        task.cancel()
+        await asyncio.sleep(0.02)
+        task.cancel()
+        await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 4)
+        assert process.terminated and process.killed and process.stdin.closed
+        await harness.close()
+
+    asyncio.run(run())

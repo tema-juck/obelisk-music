@@ -100,6 +100,10 @@ def test_radio_without_spotify_responsive_navigation_and_source_isolation(
             assert table.region.height >= 2 and table.region.width > 0
             for identifier in ("radio-state", "radio-playing", "radio-hint"):
                 assert screen.query_one("#" + identifier).region.bottom <= size[1]
+            if size[0] == 40:
+                hint = screen.query_one("#radio-hint", PlainText).render().plain
+                assert all(len(line) <= 38 for line in hint.splitlines())
+                assert "Space" in hint and "vol" in hint and "Esc" in hint
             assert app.source == "radio" and not app.session.authorized
             assert len(screen.entries) == 3
             await pilot.press("j", "enter")

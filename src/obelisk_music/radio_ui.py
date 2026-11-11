@@ -116,9 +116,9 @@ class RadioScreen(ModalScreen):
                 yield Input(
                     placeholder="Name / search", max_length=200, id="radio-search"
                 )
-                yield Input(placeholder="Country: DE", max_length=2, id="radio-country")
-                yield Input(placeholder="Language", max_length=80, id="radio-language")
-                yield Input(placeholder="Genre / tag", max_length=80, id="radio-tag")
+                yield Input(placeholder="Country", max_length=2, id="radio-country")
+                yield Input(placeholder="Lang", max_length=80, id="radio-language")
+                yield Input(placeholder="Tag", max_length=80, id="radio-tag")
             yield PlainText("DISCOVERY", id="radio-view", classes="pane-title")
             yield NavigationTable(vim_keys=self.vim_keys, id="radio-stations")
             yield PlainText("Loading stations…", id="radio-message")
@@ -133,12 +133,19 @@ class RadioScreen(ModalScreen):
     def on_mount(self) -> None:
         self.show_stations([])
         self.call_after_refresh(self.query_one(NavigationTable).focus)
+        self.call_after_refresh(self._resize_rows)
         self.intent("load")
 
     def on_resize(self) -> None:
         self.call_after_refresh(self._resize_rows)
 
     def _resize_rows(self) -> None:
+        if len(self.query("#radio-hint")):
+            self.query_one("#radio-hint", PlainText).update(
+                "Enter play · Space stop · +/- vol\n/ search · f save · ? help · Esc back"
+                if self.size.width < 60
+                else "Enter play · / search · f favorite · ? help\nSpace stop/resume · +/- volume · Esc Spotify"
+            )
         if len(self.query("#radio-stations")) and self.view != "genres":
             self.show_stations(self.entries, self.more)
 

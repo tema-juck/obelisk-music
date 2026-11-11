@@ -71,3 +71,5 @@ CatalogScreen { align: center top; background: transparent; }
 .radio-dialog { width: 90%; height: 7; padding: 1; background: $background; }
 CustomStationScreen { align: center middle; }
 #custom-message { height: 2; color: $muted; }
+
+#radio-filters Input { margin-right: 1; }
