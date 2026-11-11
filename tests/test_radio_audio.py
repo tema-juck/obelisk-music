@@ -290,3 +290,94 @@ def test_icy_metadata_is_stripped_bounded_and_plain():
 )
 def test_codec_sniffing(data, codec):
     assert audio_format(data) == codec
+
+
+def test_stubborn_process_is_killed_and_waited():
+    async def run():
+        harness = Harness()
+        task = asyncio.create_task(harness.backend.play(station()))
+        await harness.until_playing()
+        harness.processes[0].ignore_term = True
+        await harness.backend.stop()
+        process = harness.processes[0]
+        assert process.terminated and process.killed and process.returncode == -9
+        assert task.cancelled() and process.stdin.closed
+        await harness.close()
+
+    asyncio.run(run())
+
+
+def test_cancel_while_connecting_ipc_cleans_up():
+    async def run():
+        harness = Harness()
+        connecting = asyncio.Event()
+
+        async def connect(*args, **kwargs):
+            connecting.set()
+            await asyncio.Future()
+
+        harness.backend.connect = connect
+        task = asyncio.create_task(harness.backend.play(station()))
+        await asyncio.wait_for(connecting.wait(), 1)
+        await harness.backend.stop()
+        assert task.cancelled() and harness.processes[0].terminated
+        await harness.close()
+
+    asyncio.run(run())
+
+
+def test_oversized_ipc_is_a_recoverable_error():
+    async def run():
+        harness = Harness()
+        reader = asyncio.StreamReader(limit=8)
+        reader.feed_data(b"12345678901234567890\n")
+        with pytest.raises(RadioError, match="oversized"):
+            await harness.backend._events(reader)
+        await harness.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 429, 503])
+def test_stream_http_rejection_never_retries_or_spawns(status):
+    async def run():
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(status)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            backend = MpvBackend(
+                http,
+                find=lambda n: "/usr/bin/mpv",
+                spawn=lambda *a, **kw: pytest.fail("HTTP error spawned mpv"),
+            )
+            await backend.play(station())
+            assert backend.snapshot.status == RadioStatus.ERROR
+            assert f"HTTP {status}" in backend.snapshot.message
+            assert len(calls) == 1
+
+    asyncio.run(run())
+
+
+def test_frozen_external_mpv_environment_keeps_system_libraries(monkeypatch):
+    import sys
+
+    from obelisk_music.radio_audio import mpv_environment
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", "/private/tmp/obelisk-bundle", raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/private/tmp/obelisk-bundle")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib")
+    monkeypatch.setenv(
+        "DYLD_LIBRARY_PATH", "/private/tmp/obelisk-bundle/lib:/opt/user/lib"
+    )
+    monkeypatch.setenv("SPOTIFY_ACCESS_TOKEN", "test-only-never-forward")
+    env = mpv_environment()
+    assert env["LD_LIBRARY_PATH"] == "/usr/local/lib"
+    assert "LD_LIBRARY_PATH_ORIG" not in env
+    assert env["DYLD_LIBRARY_PATH"] == "/opt/user/lib"
+    assert "SPOTIFY_ACCESS_TOKEN" not in env
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG")
+    assert "LD_LIBRARY_PATH" not in mpv_environment()

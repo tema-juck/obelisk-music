@@ -309,3 +309,23 @@ def test_empty_or_failed_directory_preserves_saved_and_custom_access(tmp_path, b
             assert app.screen.view == "favorites"
 
     asyncio.run(run())
+
+
+def test_remembers_browsing_selection_without_autoplay(tmp_path):
+    async def run():
+        app, backend = make_app(tmp_path)
+        async with app.run_test() as pilot:
+            await pilot.press("R")
+            await pilot.pause(0.1)
+            await pilot.press("j", "j", "escape")
+            await pilot.pause(0.1)
+            assert app.radio.state.last == station(3)
+            assert not backend.active
+        second, second_backend = make_app(tmp_path)
+        async with second.run_test() as pilot:
+            await pilot.press("R")
+            await pilot.pause(0.1)
+            assert second.screen.query_one(NavigationTable).cursor_row == 2
+            assert not second_backend.active
+
+    asyncio.run(run())

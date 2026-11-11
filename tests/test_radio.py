@@ -1,6 +1,7 @@
 """Radio contracts use mock HTTP, fake DNS and private temporary state only."""
 
 import asyncio
+import json
 import os
 import socket
 
@@ -310,3 +311,47 @@ def test_store_rejects_symlinks_and_write_failures(monkeypatch, tmp_path):
     linked.symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises((RadioError, ConfigError)):
         RadioStore(linked / "radio.json").load()
+
+
+@pytest.mark.parametrize("status", [401, 403, 404])
+def test_directory_denial_is_not_spotify_authentication(status):
+    async def run():
+        calls = []
+
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(status)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            with pytest.raises(RadioError, match=f"HTTP {status}"):
+                await RadioDirectory(http).search()
+        assert len(calls) == 1
+
+    asyncio.run(run())
+
+
+def test_directory_body_limit_and_compression_rejection():
+    async def run():
+        for response in [
+            httpx.Response(200, content=b" " * 1_048_577),
+            httpx.Response(
+                200, headers={"content-encoding": "identity, identity"}, content=b"[]"
+            ),
+        ]:
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(lambda r, response=response: response)
+            ) as http:
+                with pytest.raises(RadioError):
+                    await RadioDirectory(http).search()
+
+    asyncio.run(run())
+
+
+def test_duplicate_saved_identifiers_are_corrupt_not_a_ui_crash(tmp_path):
+    path = tmp_path / "radio.json"
+    state = {"favorites": [station().model_dump(), station().model_dump()]}
+    path.write_text(json.dumps(state))
+    store = RadioStore(path)
+    with pytest.raises(RadioError, match="repair"):
+        store.load()
+    assert json.loads(path.read_text()) == state

@@ -177,6 +177,12 @@ class RadioController:
             screen = self.overlay
             try:
                 await self._ensure_state()
+                if (
+                    action in ("back", "quit")
+                    and (selected := screen.selected())
+                    and selected != self.state.last
+                ):
+                    await self._save(self.state.model_copy(update={"last": selected}))
                 if action == "quit":
                     await self.backend.stop()
                     self.app.exit()

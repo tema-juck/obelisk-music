@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -65,6 +67,31 @@ def mpv_arguments(executable: str, socket: Path, codec: str, volume: int) -> lis
         "--",
         "fd://0",
     ]
+
+
+def mpv_environment() -> dict[str, str]:
+    """A frozen Python's bundled libraries must not leak into the system mpv."""
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("SPOTIFY_")
+    }
+    if getattr(sys, "frozen", False):
+        original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+        if original is None:
+            env.pop("LD_LIBRARY_PATH", None)
+        else:
+            env["LD_LIBRARY_PATH"] = original
+        bundled = str(getattr(sys, "_MEIPASS", ""))
+        if bundled:
+            for key in ("PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH"):
+                if key in env:
+                    env[key] = os.pathsep.join(
+                        part
+                        for part in env[key].split(os.pathsep)
+                        if part and not Path(part).is_relative_to(bundled)
+                    )
+    return env
 
 
 class MpvBackend:
@@ -206,6 +233,7 @@ class MpvBackend:
                             stdin=asyncio.subprocess.PIPE,
                             stdout=asyncio.subprocess.DEVNULL,
                             stderr=asyncio.subprocess.DEVNULL,
+                            env=mpv_environment(),
                         )
                     )
                     try:

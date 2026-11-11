@@ -7,7 +7,7 @@ import unicodedata
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .radio_http import validate_url
 
@@ -92,3 +92,14 @@ class RadioState(BaseModel):
     custom: list[Station] = Field(default_factory=list, max_length=100)
     last: Station | None = None
     volume: int = Field(default=70, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def unique_stations(self) -> RadioState:
+        for entries in (self.favorites, self.custom):
+            if len({station.id for station in entries}) != len(entries):
+                raise ValueError(
+                    "Saved station lists must not contain duplicate identifiers"
+                )
+        if any(not station.custom for station in self.custom):
+            raise ValueError("Custom stations must be marked as custom")
+        return self
