@@ -179,7 +179,7 @@ def main() -> None:
         subprocess.run(
             [uv, "pip", "check", "--python", str(python)], cwd=root, env=env, check=True
         )
-        check_config([str(root / "venv" / "bin" / "obelisk")], root, env)
+        check_config([str(root / "venv" / "bin" / "obelisk-radio")], root, env)
         probe = root / "smoke_wheel.py"
         shutil.copyfile(__file__, probe)
         subprocess.run(
