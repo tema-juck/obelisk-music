@@ -2,7 +2,9 @@
 
 Obelisk is a Spotify Connect controller for keyboard users. The task brief,
 AGENTS.md, README, and Spotify's current Web API contracts define product scope.
-There is no direct audio, download, queue-editing, or lyrics workflow. UI copy is
+Spotify remains a Connect controller. The Issue #16 radio development feature
+adds independent local MP3/AAC playback; no Spotify decoding, downloads, queue
+editing, or lyrics are introduced. UI copy is
 English; catalog metadata is Unicode. No locale-specific business flows exist.
 Visual intent and runtime token ownership are documented in DESIGN.md.
 
@@ -60,3 +62,21 @@ smoke, and native binary smoke. Headless tests cover both themes and 120×35,
 80×24, 60×20, and 40×12, nested focus restoration, stale reads, failure recovery,
 and playback. Live Spotify/device behavior still requires a real account smoke
 test; mocks cannot establish account-specific API access or hardware behavior.
+
+
+## Radio contract (Issue #16)
+
+Source: Issue #16 and the current P3 brief; API/security/policy evidence is linked
+in docs/radio.md. RadioScreen reuses NavigationTable for selection, Input for
+filters/custom entry, PlainText for status, and HelpScreen for shortcuts. Enter
+in input never plays; delayed reads retain keyboard access and reject stale
+results after edits, mode changes, and close. Favorites/custom deletion is
+reversible by re-adding the displayed station; no confirmation blocks routine
+list edits. RadioStore preserves corrupt bytes and refuses writes after failure.
+
+R from the library enters Radio without Spotify authorization. Radio owns its
+LIVE state and volume. It never invokes Spotify endpoints. Source switching does
+not cancel Spotify mutations; pending mutations delay entry. Spotify reads/polls
+are suspended; leaving Radio stops/reaps its child before returning. Known active
+Spotify playback requires an explicit user pause first. Source isolation does
+not establish policy compliance: Spotify §III.5 is a public-release blocker.

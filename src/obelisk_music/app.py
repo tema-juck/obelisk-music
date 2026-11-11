@@ -1,4 +1,4 @@
-"""Minimal keyboard-first Spotify Connect terminal UI."""
+"""Minimal keyboard-first Spotify Connect and Internet Radio terminal UI."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from .widgets import FeedbackBar, NowPlaying, PlainText
 
 
 class ObeliskApp(App):
-    """A quiet, text-first interface: Spotify Connect handles all audio."""
+    """A quiet interface with isolated Spotify Connect and local radio playback."""
 
     TITLE = "Obelisk Player"
     CSS_PATH = "obelisk.tcss"

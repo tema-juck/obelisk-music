@@ -27,6 +27,13 @@ RUNTIME_FILES = {
     "obelisk_music/spotify.py",
     "obelisk_music/widgets.py",
     "obelisk_music/obelisk.tcss",
+    "obelisk_music/radio_audio.py",
+    "obelisk_music/radio_controller.py",
+    "obelisk_music/radio_directory.py",
+    "obelisk_music/radio_http.py",
+    "obelisk_music/radio_models.py",
+    "obelisk_music/radio_store.py",
+    "obelisk_music/radio_ui.py",
 }
 
 
@@ -54,6 +61,10 @@ async def check_installed() -> None:
     from obelisk_music.browser import CatalogTable
     from obelisk_music.config import config_path, load_settings
     from obelisk_music.models import Token
+    from obelisk_music.radio_directory import StationPage
+    from obelisk_music.radio_models import Station
+    from obelisk_music.radio_store import RadioStore
+    from obelisk_music.radio_ui import RadioScreen
     from obelisk_music.screens import CatalogScreen
     from obelisk_music.widgets import NowPlaying
 
@@ -136,15 +147,36 @@ async def check_installed() -> None:
                 },
             )
 
+        class Directory:
+            async def search(self, **filters):
+                return StationPage(
+                    [
+                        Station.from_custom(
+                            "[red]Radio smoke[/red]", "https://example.org/live"
+                        )
+                    ],
+                    None,
+                )
+
         app = ObeliskApp(
             settings=load_settings(path),
             config_file=path,
             http=httpx.AsyncClient(transport=httpx.MockTransport(catalog)),
+            radio_directory=Directory(),
+            radio_store=RadioStore(path.parent / "radio-smoke.json"),
         )
         async with app.run_test(size=(80, 24)) as pilot:
             assert app.query_one("#track").region.width > 0
             assert app.query_one("#device").region.bottom <= 24
             assert app.theme == "mono"
+            await pilot.press("R")
+            await pilot.pause(0.1)
+            assert isinstance(app.screen, RadioScreen)
+            assert app.screen.entries[0].name == "[red]Radio smoke[/red]"
+            assert not app.session.authorized
+            await pilot.press("escape")
+            await pilot.pause(0.1)
+            assert app.source == "spotify"
             app.session._install(
                 Token(access_token="mock-smoke-access", expires_in=3600)
             )

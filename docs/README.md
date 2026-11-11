@@ -25,3 +25,6 @@ The public project name is **Obelisk Player**. Compatibility identifiers remain
 `obelisk` (CLI), `obelisk-music` (distribution and keychain service), and
 `obelisk_music` (Python namespace). Existing configuration, installer receipts,
 version metadata, tags, and published assets are preserved.
+
+- [Internet radio](radio.md): development feature, optional mpv, controls, safety, and policy release gate.
+- [Radio verification](radio-verification.md): local results, native/live checks, and outstanding release gates.

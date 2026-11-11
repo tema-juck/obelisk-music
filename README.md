@@ -39,6 +39,20 @@ Spotify Web API; it does not stream or decode Spotify audio.
 > Playback requires Spotify Premium, your own Spotify Developer app, and a Connect
 > device. Account permissions, market availability, and Spotify API quotas apply.
 
+## Internet radio (development)
+
+The `feat/16-internet-radio` branch adds independent local MP3/AAC radio. Install
+[mpv](https://mpv.io/installation/), launch `obelisk`, and press **R** from the
+library. No Spotify login or Premium is needed for radio. Discover stations,
+filter by country/language/tag, save favorites, or add custom stream URLs. Space
+stops/resumes at the live edge; +/- changes radio volume; Esc stops radio and
+returns to Spotify.
+
+See the [radio guide](docs/radio.md) for controls, backend installation, storage,
+security boundaries, troubleshooting, and the **Spotify policy clearance required
+before distributing this combined feature**. Published alpha.2 binaries do not
+include radio.
+
 ## See Obelisk Player in Action
 
 > **A terminal session, coming soon.**

@@ -30,6 +30,8 @@ def test_tests_cannot_access_network_or_credentials():
         "screens.py",
         "config.py",
         "cli.py",
+        "radio_audio.py",
+        "radio_ui.py",
     ],
 )
 def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing):
@@ -49,6 +51,13 @@ def test_smoke_rejects_missing_runtime_resource_before_install(tmp_path, missing
             "spotify.py",
             "widgets.py",
             "obelisk.tcss",
+            "radio_audio.py",
+            "radio_controller.py",
+            "radio_directory.py",
+            "radio_http.py",
+            "radio_models.py",
+            "radio_store.py",
+            "radio_ui.py",
         ]:
             if name != missing:
                 archive.writestr(f"obelisk_music/{name}", "test fixture")

@@ -161,3 +161,9 @@ the repository, or release archives. `.env` files are not loaded automatically.
 - **No playback device:** open Spotify, start playback, then press **D** to select a controllable device. Restricted or disappeared devices cannot accept commands.
 - **One-file startup fails:** PyInstaller needs a writable temporary directory that permits loading executable code. The smoke test also requires a real PTY and OS IPC support; restrictive sandboxes can block these.
 
+
+## Optional radio backend (development)
+
+The Internet Radio development branch requires an external `mpv` executable.
+It is not installed or bundled by the shell installer or PyInstaller builds.
+Spotify and configuration commands do not require it. See [radio setup](radio.md).

@@ -78,3 +78,10 @@ feedback; connection state remains separate. No animated loading indicators.
 - Preserve focus and row selection when returning from a nested view.
 - Do not introduce a second palette in screen-specific styles.
 - Do not execute commands merely because a search character matches a shortcut.
+
+## Radio
+
+Radio reuses NavigationTable, PlainText, Input, existing theme tokens and help.
+A full-screen source-specific LIVE strip replaces Spotify Now Playing while radio
+is open. The strip reports actual backend state; no time-position fiction or
+animated decoration. Four one-line filters remain keyboard-focusable at 40×12.
