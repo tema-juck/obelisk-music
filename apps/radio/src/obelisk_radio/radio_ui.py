@@ -11,10 +11,13 @@ from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widgets import DataTable, Input
 
+from .audio_pipeline import VisualizerState
 from .browser import NavigationTable
+from .config import VisualizerSettings
 from .radio_directory import GENRES
 from .radio_http import RadioError
 from .radio_models import RadioPlayback, RadioStatus, Station
+from .visualizer import Visualizer
 from .widgets import PlainText
 
 
@@ -70,6 +73,8 @@ class RadioScreen(Screen):
         ("r", "refresh", "Refresh"),
         ("space", "toggle", "Stop / Resume"),
         ("x", "stop", "Stop"),
+        ("t", "visualizer_toggle", "Visualizer on / off"),
+        ("z", "visualizer_cycle", "Visualizer preset"),
         ("plus", "louder", "Volume up"),
         ("equal", "louder", "Volume up"),
         ("minus", "quieter", "Volume down"),
@@ -90,9 +95,12 @@ class RadioScreen(Screen):
             super().__init__()
             self.overlay, self.action, self.station = screen, action, station
 
-    def __init__(self, *, vim_keys: bool = True):
+    def __init__(
+        self, *, vim_keys: bool = True, visualizer: VisualizerState | None = None
+    ):
         super().__init__()
         self.vim_keys = vim_keys
+        self.visualizer = visualizer or VisualizerState(VisualizerSettings())
         self.entries: list[Station] = []
         self.more = False
         self.view = "favorites"
@@ -124,6 +132,7 @@ class RadioScreen(Screen):
             yield PlainText("STOPPED · LIVE · Volume 70%", id="radio-state")
             yield PlainText("Choose a station · Enter play", id="radio-playing")
             yield PlainText("", id="radio-metadata")
+            yield Visualizer(self.visualizer, id="radio-visualizer")
             yield PlainText(
                 "Enter play · / search · f favorite · ? help\nSpace stop/resume · +/- volume · Esc back",
                 id="radio-hint",
@@ -333,6 +342,12 @@ class RadioScreen(Screen):
 
     def action_stop(self) -> None:
         self.intent("stop")
+
+    def action_visualizer_toggle(self) -> None:
+        self.intent("visualizer-toggle")
+
+    def action_visualizer_cycle(self) -> None:
+        self.intent("visualizer-cycle")
 
     def action_louder(self) -> None:
         self.intent("louder")

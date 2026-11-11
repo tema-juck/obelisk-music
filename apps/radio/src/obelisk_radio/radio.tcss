@@ -25,3 +25,8 @@ CustomStationScreen { align: center middle; }
 HelpScreen { background: $background; }
 #help-scroll { height: 1fr; padding: 1; }
 #help-text { height: auto; }
+Visualizer { height: 4; color: $accent; overflow: hidden hidden; }
+Visualizer.visualizer-off { display: none; }
+.compact Visualizer { height: 3; }
+.tiny Visualizer { height: 2; }
+.tiny #radio-genres, .tiny #radio-view { display: none; }

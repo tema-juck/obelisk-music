@@ -20,6 +20,12 @@ theme = "midnight" # midnight or mono; restart after editing.
 
 [interface]
 vim_keys = true # j/k navigation; arrows always work.
+
+[visualizer]
+enabled = false # t toggles during playback; restart after editing this file.
+mode = "spectrum" # spectrum, beat-pulse, waveform or off; z cycles presets.
+fps = 30 # 10 to 60; display/analysis rate.
+sensitivity = 1.0 # 0.25 to 4.0.
 """
 
 
@@ -41,9 +47,17 @@ class InterfaceSettings(Section):
     vim_keys: bool = True
 
 
+class VisualizerSettings(Section):
+    enabled: bool = False
+    mode: Literal["spectrum", "beat-pulse", "waveform", "off"] = "spectrum"
+    fps: int = Field(default=30, ge=10, le=60)
+    sensitivity: float = Field(default=1.0, ge=0.25, le=4.0, allow_inf_nan=False)
+
+
 class Settings(Section):
     appearance: AppearanceSettings = Field(default_factory=AppearanceSettings)
     interface: InterfaceSettings = Field(default_factory=InterfaceSettings)
+    visualizer: VisualizerSettings = Field(default_factory=VisualizerSettings)
 
 
 def config_path() -> Path:

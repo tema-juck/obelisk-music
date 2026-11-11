@@ -70,7 +70,9 @@ class RadioApp(App):
         )
 
     def get_default_screen(self):
-        screen = RadioScreen(vim_keys=self.settings.interface.vim_keys)
+        screen = RadioScreen(
+            vim_keys=self.settings.interface.vim_keys, visualizer=self.radio.visualizer
+        )
         self.radio.overlay = screen
         return screen
 

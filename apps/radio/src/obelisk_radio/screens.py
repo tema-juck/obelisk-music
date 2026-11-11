@@ -24,7 +24,7 @@ class HelpScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="help-scroll"):
             yield PlainText(
-                "RADIO · Esc back\n\nArrows / j/k Navigate stations\nEnter Play / load more\n/ Search name\nTab / Shift+Tab Cycle filters/results\nCountry: two-letter code (DE, US)\nLanguage: name (english)\nTag: genre (house, metal, blues)\ng Genres · 1–6 shortcuts\nf Toggle favorite · v Favorites\nc Custom · a Add URL · Delete Remove custom\nSpace Stop/resume at live edge\nx Stop · +/- Volume\nr Refresh · Esc Discovery · q Quit\n? Help\n\nInstall mpv from mpv.io/installation\nDirect public MP3/AAC URLs only\nConfiguration: "
+                "RADIO · Esc back\n\nArrows / j/k Navigate stations\nEnter Play / load more\n/ Search name\nTab / Shift+Tab Cycle filters/results\nCountry: two-letter code (DE, US)\nLanguage: name (english)\nTag: genre (house, metal, blues)\ng Genres · 1–6 shortcuts\nf Toggle favorite · v Favorites\nc Custom · a Add URL · Delete Remove custom\nSpace Stop/resume at live edge\nx Stop · +/- Volume\nt Visualizer on/off · z Spectrum/Beat Pulse/Waveform/Off\nEnabling visualization restarts playback at the live edge\nr Refresh · Esc Discovery · q Quit\n? Help\n\nInstall mpv from mpv.io/installation\nDirect public MP3/AAC URLs only\nConfiguration: "
                 + str(self.config_file),
                 id="help-text",
             )

@@ -13,7 +13,7 @@ shared authentication, playback control or metadata handoff.
 | Command | obelisk | obelisk-radio |
 | Configuration | XDG config / obelisk/config.toml | XDG config / obelisk-radio/config.toml |
 | State/credentials | Existing OS keychain and settings | XDG data / obelisk-radio/radio.json |
-| Runtime dependencies | Textual, HTTPX, Pydantic, keyring | Textual, HTTPX, Pydantic; external mpv for playback |
+| Runtime dependencies | Textual, HTTPX, Pydantic, keyring | Textual, HTTPX, Pydantic, NumPy; external mpv for playback |
 | Tags | vX.Y.Z[-alpha.N/beta.N/rc.N] | radio-vX.Y.Z[-alpha.N/beta.N/rc.N] |
 | Executable archives | obelisk-vX.Y.Z-TARGET.tar.gz | obelisk-radio-vX.Y.Z-TARGET.tar.gz |
 
@@ -133,14 +133,18 @@ Do not enable Radio publishing until these questions and the product design have
 been reviewed. Player's existing functionality is preserved without a claim that
 this monorepo decision resolves its contractual obligations.
 
-## Future radio-only PCM analysis
+## Optional radio-only PCM analysis
 
 JSON IPC exposes mpv events/properties, not decoded samples. The previous synthetic
 probe verified `--ao=pcm --ao-pcm-file=<private FIFO> --ao-pcm-waveheader=no` with
 s16 stereo at 48 kHz, receiving 192000 bytes for a one-second synthetic signal.
-This output replaces mpv's system audio output. A future adapter must feed a real
-audio sink and a bounded analysis buffer, handle backpressure and synchronize
-lifetime with the existing engine. No PCM output or visualizer is enabled here,
-and no future analysis path may consume Spotify audio, state or metadata.
+This output replaces mpv's system audio output. The optional visualizer adapter
+now explicitly feeds decoded PCM to a second mpv's system audio sink, with a
+bounded memory analysis branch synchronized to the sink's audio clock. Anonymous
+pipes replace named FIFOs; no audio is stored. Default off retains the original
+single-process playback path and the original engine's provenance hash. See
+[the design](radio-visualizer-design.md) and
+[verification results](radio-visualizer-verification.md). Analysis consumes only
+Radio audio and never Spotify audio, state or metadata. Publication is still held.
 
 Actual local results are recorded in [monorepo verification](monorepo-verification.md).
