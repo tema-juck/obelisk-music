@@ -1,3 +1,35 @@
+# Obelisk monorepo
+
+One repository containing **two independently packaged applications**. There is
+no combined executable, shared playback controller, or cross-product launcher.
+
+| Product | Purpose | Executable | Status |
+| --- | --- | --- | --- |
+| **Obelisk Player** | Spotify Connect controller | `obelisk` | Published; existing installation remains compatible |
+| **Obelisk Radio** | Local Internet Radio through external mpv | `obelisk-radio` | Development; publication blocked pending policy review |
+
+Player stays at the repository root (`obelisk-music`, `obelisk_music`). Radio has
+its own package, lockfile, tests, configuration, state, CI, and release validation
+under [`apps/radio`](apps/radio). Neither application imports the other.
+
+To develop Radio without installing Player or keyring:
+
+```sh
+uv sync --directory apps/radio --frozen --dev
+uv run --directory apps/radio obelisk-radio
+```
+
+Install [mpv separately](https://mpv.io/installation/) for radio playback. Radio
+starts offline in Favorites; `/` searches, `g` browses genres, and `a` adds a public
+direct MP3/AAC stream. No Spotify account, credentials, or Premium is needed.
+Radio is not included in the published Player binaries or the Player installer.
+
+See the [Radio guide](apps/radio/README.md) and [monorepo architecture and release
+policy](docs/monorepo.md). Separate packaging does **not** establish Spotify policy
+compliance. This change enables no Radio release publication.
+
+The following installation and Spotify documentation applies to **Obelisk Player**.
+
 <p align="center">
   <img src="docs/assets/obelisk-poster.png" alt="Obelisk Player — original Obelisk Music project artwork" width="100%">
 </p>

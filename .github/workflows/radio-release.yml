@@ -1,0 +1,134 @@
+name: Radio Release Validation
+
+on:
+  push:
+    tags: ["radio-v*"]
+
+defaults:
+  run:
+    working-directory: apps/radio
+
+permissions:
+  contents: read
+
+concurrency:
+  group: radio-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UV_FROZEN: "true"
+  BUILD_PYTHON: "3.13.18"
+  RELEASE_TAG: ${{ github.ref_name }}
+
+jobs:
+  policy-review:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - name: Hold release artifacts pending policy review
+        run: uv run --no-project python scripts/release.py check-policy --tag "$RELEASE_TAG"
+  quality:
+    needs: policy-review
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - name: Install locked dependencies and release tools
+        run: uv sync --frozen --dev --group release
+      - name: Verify tag against package metadata
+        run: uv run python scripts/release.py verify-tag --tag "$RELEASE_TAG"
+      - run: uv run ruff check src tests scripts packaging
+      - run: uv run ruff format --check src tests scripts packaging
+      - run: uv run pytest -q
+      - run: uv build --no-build-isolation
+      - run: uv run python scripts/smoke_wheel.py dist/*.whl
+
+  native:
+    needs: quality
+    name: Radio Native ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-amd64
+          - runner: ubuntu-22.04
+            target: linux-amd64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - run: uv sync --frozen --dev --group release
+      - name: Run native regression tests
+        run: uv run pytest -q
+      - name: Build and smoke-test the native executable
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: uv run python scripts/build_binary.py --tag "$RELEASE_TAG" --target "$BUILD_TARGET" --output "$RUNNER_TEMP/obelisk-radio-release"
+      - name: Upload only the verified archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: radio-native-${{ matrix.target }}
+          path: ${{ runner.temp }}/obelisk-radio-release/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  # Publication intentionally absent until a separate policy-reviewed change.
+
+  validate-artifacts:
+    needs: [quality, native]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: ${{ env.BUILD_PYTHON }}
+          enable-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: radio-native-*
+          path: ${{ runner.temp }}/radio-artifacts
+          merge-multiple: true
+      - name: Validate complete set and generate checksums (no publication)
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: uv run --no-project python scripts/release.py validate --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --directory "$RUNNER_TEMP/radio-artifacts"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: radio-validated-${{ github.ref_name }}
+          path: ${{ runner.temp }}/radio-artifacts/*
+          if-no-files-found: error
+          retention-days: 14

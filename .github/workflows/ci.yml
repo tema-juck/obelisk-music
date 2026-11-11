@@ -1,4 +1,4 @@
-name: CI
+name: Player CI
 
 on:
   pull_request:
@@ -34,9 +34,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen --dev
       - name: Lint
-        run: uv run ruff check .
+        run: uv run ruff check src tests scripts packaging
       - name: Check formatting
-        run: uv run ruff format --check .
+        run: uv run ruff format --check src tests scripts packaging
       - name: Test (Spotify access disabled)
         run: uv run pytest -q
       - name: Build distributions

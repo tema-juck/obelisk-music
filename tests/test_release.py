@@ -533,3 +533,8 @@ def test_binary_smoke_failure_reports_diagnostics(tmp_path, monkeypatch):
     )
     with pytest.raises(ValueError, match="missing resource"):
         smoke.smoke(executable, release.project_version())
+
+
+def test_radio_tag_cannot_enter_player_release_pipeline():
+    with pytest.raises(ValueError):
+        release.verify_tag("radio-v0.3.0-alpha.2", "0.3.0a2")
