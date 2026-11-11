@@ -177,7 +177,7 @@ def test_either_child_exit_or_pipe_eof_reaps_both(failed):
     asyncio.run(run())
 
 
-def test_stalled_sink_is_bounded_and_cancellation_never_waits_for_dsp():
+def test_stalled_sink_is_bounded_and_cancellation_reaps_children():
     async def run():
         decoder, sink = children()
 
@@ -194,6 +194,60 @@ def test_stalled_sink_is_bounded_and_cancellation_never_waits_for_dsp():
         process.terminate()
         await asyncio.wait_for(process.wait(), 1)
         assert sink.terminated and decoder.terminated
+
+    asyncio.run(run())
+
+
+def test_stubborn_decoder_and_sink_are_both_killed_and_reaped():
+    async def run():
+        decoder, sink = children()
+        decoder.ignore_term = sink.ignore_term = True
+        process = PcmProcess(decoder, sink, AnalysisSession(state()))
+        process.terminate()
+        await asyncio.wait_for(process.wait(), 3)
+        assert decoder.killed and sink.killed
+        assert decoder.returncode == sink.returncode == -9
+
+    asyncio.run(run())
+
+
+def test_cancel_waits_for_single_inflight_dsp_job_and_discards_result(monkeypatch):
+    import threading
+
+    from obelisk_radio.audio_analysis import Analyzer
+
+    async def run():
+        entered, release = threading.Event(), threading.Event()
+        analyze = Analyzer.analyze
+        calls = []
+
+        def slow(self, *args):
+            calls.append(1)
+            entered.set()
+            assert release.wait(2)
+            return analyze(self, *args)
+
+        monkeypatch.setattr(Analyzer, "analyze", slow)
+        view = state()
+        session = AnalysisSession(view)
+        session.ring.append(tone(1500) * 4)
+        session.clock = 0.1
+        session.clock_updated = time.monotonic()
+        task = asyncio.create_task(session.run())
+        try:
+            for _ in range(100):
+                if entered.is_set():
+                    break
+                await asyncio.sleep(0.005)
+            assert entered.is_set()
+            task.cancel()
+            await asyncio.sleep(0.01)
+            assert not task.done() and calls == [1]
+        finally:
+            release.set()
+            task.cancel()
+            await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 1)
+        assert view.frame is None
 
     asyncio.run(run())
 

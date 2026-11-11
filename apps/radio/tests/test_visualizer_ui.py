@@ -39,17 +39,20 @@ def test_all_modes_responsive_keyboard_focus_missing_pcm_stop_and_resize(
             backend.update(station=station(), status=RadioStatus.PLAYING)
             for mode in ("spectrum", "beat-pulse", "waveform"):
                 assert view.mode == mode
-                view.frame = Analyzer().analyze(tone(1500), 0)
+                view.frame = Analyzer().analyze(tone(93.75, 0.3), 0)
                 view.updated = time.monotonic()
                 widget.refresh_frame()
                 await pilot.pause(0.01)
                 rendered = widget.render().plain
                 assert mode.upper() in rendered
                 assert "Audio unavailable" not in rendered
+                if mode == "waveform":
+                    assert len(set("".join(rendered.splitlines()[1:]))) > 1
                 assert all(
                     len(line) <= widget.size.width for line in rendered.splitlines()
                 )
                 assert table.region.height >= 2
+                assert app.screen.query_one("#radio-metadata").display
                 for selector in (
                     "#radio-state",
                     "#radio-playing",

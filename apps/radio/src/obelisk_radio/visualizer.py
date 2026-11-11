@@ -42,41 +42,20 @@ class Visualizer(Static):
         if frame is None:
             return Text(title + "\n" + "Audio unavailable"[:width])
         if self.state.mode == "waveform":
-            if height == 1:
-                blocks = "▁▂▃▄▅▆▇█"
-                return Text(
-                    title
-                    + "\n"
-                    + "".join(
-                        blocks[
-                            max(
-                                0,
-                                min(
-                                    7,
-                                    round(
-                                        (
-                                            frame.waveform[min(127, x * 128 // width)]
-                                            * self.state.settings.sensitivity
-                                            + 1
-                                        )
-                                        * 3.5
-                                    ),
-                                ),
-                            )
-                        ]
-                        for x in range(width)
-                    )
-                )
-            canvas = [[" " for _ in range(width)] for _ in range(height)]
-            for x in range(width):
-                sample = frame.waveform[min(127, x * 128 // width)]
+            canvas = [[0 for _ in range(width)] for _ in range(height)]
+            dots = ((0, 1, 2, 6), (3, 4, 5, 7))
+            for x in range(width * 2):
+                sample = frame.waveform[min(127, x * 128 // (width * 2))]
                 amplitude = max(-1, min(1, sample * self.state.settings.sensitivity))
-                row = round((1 - amplitude) * (height - 1) / 2)
-                canvas[row][x] = "●"
-            lines = ["".join(row) for row in canvas]
+                y = round((1 - amplitude) * (height * 4 - 1) / 2)
+                canvas[y // 4][x // 2] |= 1 << dots[x % 2][y % 4]
+            lines = [
+                "".join(chr(0x2800 | cell) if cell else " " for cell in row)
+                for row in canvas
+            ]
         elif self.state.mode == "beat-pulse":
             count = round(frame.pulse * max(1, width // 2))
-            pulse = ("●" if frame.onset else "━") * (count * 2)
+            pulse = ("●" if frame.onset else "━") * min(width, count * 2)
             lines = [pulse.center(width)] * height
         else:
             blocks = " ▁▂▃▄▅▆▇█"

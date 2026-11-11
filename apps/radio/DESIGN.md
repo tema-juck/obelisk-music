@@ -14,9 +14,9 @@ Space in results stops/resumes at the live edge. Metadata is never invented.
 Visualizer owns a non-focusable, borderless strip below playback metadata. It
 inherits $accent from the existing runtime theme; no new palette or input
 primitive is introduced. Height is four rows normally, three in compact mode,
-and two in tiny mode. Tiny layouts omit genre/view/metadata labels to preserve
-station rows, playback state and keyboard help. The one-row waveform uses signed
-amplitude glyphs. Disabled visualization occupies no rows and pauses its timer.
+and two in tiny mode. Tiny layouts omit genre/view labels to preserve
+station rows, playback state and keyboard help. The waveform uses Braille subcells for signed amplitude resolution
+even in a one-row graph. Disabled visualization occupies no rows and pauses its timer.
 
 RadioScreen owns t (toggle) and z (preset), gated while Input has focus like all
 other Radio shortcuts. RadioController owns state and restart-at-live-edge when
