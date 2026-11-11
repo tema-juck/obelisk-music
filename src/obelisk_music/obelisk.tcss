@@ -53,3 +53,21 @@ CatalogScreen { align: center top; background: transparent; }
 #catalog-metadata, #catalog-message, #catalog-hint { height: 1; color: $muted; text-wrap: nowrap; text-overflow: ellipsis; }
 #catalog-results { height: 1fr; min-height: 2; }
 .compact .catalog-overlay, .tiny .catalog-overlay { padding: 0 1; }
+
+/* Radio owns its playback strip; Spotify state is never projected into it. */
+#radio-shell { width: 100%; height: 100%; padding: 1 3 0 3; background: $background; }
+#radio-genres, #radio-view, #radio-message, #radio-state, #radio-playing, #radio-metadata { height: 1; text-wrap: nowrap; text-overflow: ellipsis; }
+#radio-genres, #radio-message, #radio-metadata { color: $muted; }
+#radio-state { color: $accent; }
+#radio-playing { text-style: bold; }
+#radio-filters { height: 1; }
+#radio-filters Input, .radio-dialog Input { height: 1; min-height: 1; border: none; padding: 0; background: $panel; color: $foreground; }
+#radio-search { width: 2fr; }
+#radio-country { width: 1fr; min-width: 8; }
+#radio-language, #radio-tag { width: 1fr; }
+#radio-stations { height: 1fr; min-height: 2; }
+#radio-hint { height: 2; color: $muted; }
+.compact #radio-shell, .tiny #radio-shell { padding: 0 1; }
+.radio-dialog { width: 90%; height: 7; padding: 1; background: $background; }
+CustomStationScreen { align: center middle; }
+#custom-message { height: 2; color: $muted; }

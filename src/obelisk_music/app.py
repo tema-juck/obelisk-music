@@ -22,6 +22,8 @@ from .browser import LibraryBrowser
 from .config import Settings, config_path, environment_settings
 from .library import SpotifyLibrary
 from .models import Album, Artist, Device, Track
+from .radio_controller import RadioController
+from .radio_ui import RadioScreen
 from .screens import CatalogScreen, DeviceScreen, HelpScreen
 from .session import SpotifySession
 from .spotify import SpotifyClient, SpotifyError
@@ -46,6 +48,7 @@ class ObeliskApp(App):
         ("d", "devices", "Devices"),
         ("question_mark", "help", "Help"),
         ("slash", "search", "Search"),
+        ("R", "radio", "Radio"),
     ]
 
     def __init__(
@@ -54,6 +57,9 @@ class ObeliskApp(App):
         settings: Settings | None = None,
         config_file: Path | None = None,
         http: httpx.AsyncClient | None = None,
+        radio_backend=None,
+        radio_directory=None,
+        radio_store=None,
     ) -> None:
         self.settings = settings if settings is not None else environment_settings()
         self.config_file = config_file if config_file is not None else config_path()
@@ -103,6 +109,10 @@ class ObeliskApp(App):
         self.session = SpotifySession(self.client_id, self.http)
         self.spotify = SpotifyClient(self.session, self.http)
         self.library = SpotifyLibrary(self.spotify)
+        self.source = "spotify"
+        self.radio = RadioController(
+            self, backend=radio_backend, directory=radio_directory, store=radio_store
+        )
         self.target_device_id: str | None = None
         self._library_worker: Worker | None = None
         self._library_key: tuple[str, str | None] | None = None
@@ -142,7 +152,7 @@ class ObeliskApp(App):
 
     def _missing_client_id(self, *, command: bool = False) -> None:
         self.status(
-            "Run obelisk config init, then config edit (or SPOTIFY_CLIENT_ID)",
+            "R: Internet radio · Spotify: config init, then config edit (or SPOTIFY_CLIENT_ID)",
             persistent=True,
             command=command,
         )
@@ -171,6 +181,7 @@ class ObeliskApp(App):
         await asyncio.gather(
             *(worker.wait() for worker in self.workers), return_exceptions=True
         )
+        await self.radio.close()
         await self.http.aclose()
 
     def status(
@@ -273,12 +284,20 @@ class ObeliskApp(App):
             self._start_refresh()
 
     def _start_refresh(self) -> None:
-        if not self.session.authorized or self._active(self._refresh_worker):
+        if (
+            self.source != "spotify"
+            or not self.session.authorized
+            or self._active(self._refresh_worker)
+        ):
             return
         self._refresh_worker = self.run_worker(self.refresh_player(), group="playback")
 
     async def refresh_player(self) -> None:
-        if not self.session.authorized or self._read_lock.locked():
+        if (
+            self.source != "spotify"
+            or not self.session.authorized
+            or self._read_lock.locked()
+        ):
             return
         async with self._read_lock:
             revision = self._revision
@@ -302,10 +321,31 @@ class ObeliskApp(App):
                 if revision == self._revision:
                     self._report_error(exc)
 
+    def action_radio(self) -> None:
+        if self.source == "radio":
+            return
+        if self._active(self._command_worker):
+            self.status(
+                "Spotify command in progress; press R again shortly", command=True
+            )
+            return
+        self._invalidate_playback()
+        self._library_revision += 1
+        if self._library_worker is not None:
+            self._library_worker.cancel()
+        self._library_key = None
+        self.source = "radio"
+        self.radio.open()
+
+    def on_radio_screen_intent(self, event: RadioScreen.Intent) -> None:
+        self.radio.intent(event)
+
     def action_login(self) -> None:
         self._start_session(interactive=True)
 
     def _start_command(self, command: str, *args: object) -> None:
+        if self.source != "spotify":
+            return
         if self._active(self._session_worker):
             self.status("Login in progress", command=True)
             return
@@ -374,6 +414,8 @@ class ObeliskApp(App):
             self._start_session(interactive=False)
 
     def _start_library(self, pane: str, playlist_id: str | None = None) -> None:
+        if self.source != "spotify":
+            return
         if not self.session.authorized:
             self.status("Press l to authorize Spotify", command=True)
             return

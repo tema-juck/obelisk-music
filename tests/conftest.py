@@ -11,6 +11,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def isolate_external_services(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path.resolve() / "config-home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path.resolve() / "data-home"))
     for name in tuple(os.environ):
         if name.startswith(("SPOTIFY_", "OBELISK_")):
             monkeypatch.delenv(name)
